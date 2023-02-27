@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "node-fetch": "^3.3.0",
+    "peapod": "^0.0.1"
+  }
+}
