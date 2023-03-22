@@ -78,8 +78,14 @@ class BuildDatabase:
         # clear table data
         #self.__cursor.execute('delete from products')
 
-        for filename in absoluteFilePaths(PRODS_FOLDER):
-            with open(filename) as f:
+        pth = absoluteFilePaths(PRODS_FOLDER)
+        #print("Path is ", pth)
+
+        ctr = 0
+
+        #try:
+        for filename in pth:
+            with open(filename, encoding='utf-8') as f:
                 print(f"attempting load file {filename} as json")
 
                 #turn json text into a Python dict
@@ -97,14 +103,23 @@ class BuildDatabase:
 
             self.__cursor.execute('insert into products values (?,?,?,?,?,?,?,?,?,?,?)', (res["prodId"], res["name"], res["aisle"], res["regularPrice"], res["upc"], res["rootCatId"], res["rootCatSeq"], res["rootCatName"], res["productCategoryId"], res["subcatId"], res["subcatName"]))
 
+            ctr += 1
+            print("ctr is ", ctr)
+
 
         self.__conn.commit()
         self.__cursor.close()
+
+        #except:
+            #print("FAIL")
+
 
 
 def absoluteFilePaths(directory):
         for dirpath, _, filenames in os.walk(directory):
             for f in filenames:
+                #yield suspends function’s execution and sends value back to caller, but retains state to enable fxn to resume where left off. When the function resumes, it continues execution immediately after the last yield run. 
+                #This allows it to produce series of values over time, rather than computing them at once and sending them back like a list.
                 yield os.path.abspath(os.path.join(dirpath, f))
 
 
