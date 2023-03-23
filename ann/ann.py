@@ -24,8 +24,14 @@ while(cap.isOpened()):
         cv2.imshow("aisle", frame)
 
         #can press q to quit
-        if cv2.waitKey(25) & 0xFF == ord('q'):
+        #if cv2.waitKey(25) & 0xFF == ord('q'):
+        #    break
+
+        key = cv2.waitKey(1)
+        if key == ord('q'):
             break
+        if key == ord('p'):
+            cv2.waitKey(-1) #wait until any key is pressed
 
     #something wrong opening frame, so break out of loop now
     else: 

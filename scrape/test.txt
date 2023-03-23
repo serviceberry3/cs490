@@ -1,3 +1,0 @@
-2.3.1 U-0000D7FF = ed 9f bf = "퟿������"
-This just some random text
-More random text. Baeldung is awesome!
