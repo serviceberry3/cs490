@@ -2,6 +2,7 @@ import pandas as pd
 import json
 import sqlite3
 import os
+import argparse
 
 
 PRODS_FOLDER = "../products"
@@ -17,24 +18,47 @@ class BuildDatabase:
         self.__cursor = None
         self.__database_name = database_name
 
+        self.__tables_file = None
+
+        #should data actually be inserted??
+        self.__insert_data = False
+
+        self._input_parse()
+
+    def _input_parse(self):
+        """Parses the command line inputs"""
+
+        parser = argparse.ArgumentParser(allow_abbrev=False)
+
+        #textfile that contains the tables to add
+        parser.add_argument('tables_file', type=str, help="file containing SQL code for table creation")
+        parser.add_argument('insert_data', type=str, help="whether or not to insert data into the table (yes or no)")
+
+        args = parser.parse_args()
+        self.__insert_data = True if args.insert_data == "yes" else False
+        self.__tables_file = args.tables_file
+
     def prep_database(self):
         """
             Method for database preparation
         """
-        database_path = "output/" + self.__database_name + ".db"
+        database_path = "output/" + self.__database_name + ".sqlite"
 
         #remove old db file if it exists
         if os.path.exists(database_path):
-            print(f"stale db {database_path} found, deleting now")
-            os.remove(database_path)
+            print("the db already exists, will use it")
+            #print(f"stale db {database_path} found, deleting now")
+            #os.remove(database_path)
 
         self.__conn = sqlite3.connect(database_path)
 
         #create all of the new tables we need
         self.create_tables()
 
-        #parse JSON files and insert the data
-        self.insert_data()
+        if self.__insert_data:
+            print("Inserting data now...")
+            #parse JSON files and insert the data
+            self.insert_data()
 
 
     def create_tables(self):
@@ -46,8 +70,10 @@ class BuildDatabase:
         self.__cursor = self.__conn.cursor()
 
         try:
-            with open('create_tables.txt', 'r', encoding='UTF-8') as file:
+            with open(self.__tables_file, 'r', encoding='UTF-8') as file:
                 sql = ""
+
+                print(f"Creating table(s) now from file {self.__tables_file}")
 
                 for line in file:
                     if len(line) > 1:
@@ -64,9 +90,6 @@ class BuildDatabase:
 
         except RuntimeError:
             print("Database creation FAILED")
-
-
-    
 
 
     def insert_data(self):
@@ -101,6 +124,7 @@ class BuildDatabase:
                     else:
                         res[key] = None
 
+            #todo: replace with for x in x syntax
             self.__cursor.execute('insert into products values (?,?,?,?,?,?,?,?,?,?,?)', (res["prodId"], res["name"], res["aisle"], res["regularPrice"], res["upc"], res["rootCatId"], res["rootCatSeq"], res["rootCatName"], res["productCategoryId"], res["subcatId"], res["subcatName"]))
 
             ctr += 1
