@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS subcat_loc(
+    subCatId INTEGER,
+    subCatName TEXT,
+    aisle INTEGER,
+    side INTEGER,
+    distFromFront FLOAT,
+    absX FLOAT,
+    absY FLOAT
+);
+
