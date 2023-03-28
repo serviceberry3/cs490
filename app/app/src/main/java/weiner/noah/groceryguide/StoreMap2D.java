@@ -3,10 +3,12 @@ package weiner.noah.groceryguide;
 import android.content.Context;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
+import android.database.Cursor;
 import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
@@ -23,6 +25,7 @@ import androidx.core.view.MotionEventCompat;
 import androidx.core.view.ViewCompat;
 
 import java.util.ArrayList;
+import java.util.Objects;
 
 public class StoreMap2D extends View {
 
@@ -33,7 +36,7 @@ public class StoreMap2D extends View {
 
     public float textWidth = 10;
     public float textHeight = 10;
-    public int textColor = Color.RED;
+    public int textColor = Color.BLACK;
 
     private ScaleGestureDetector mScaleDetector;
     private float mScaleFactor = 1.f;
@@ -62,6 +65,11 @@ public class StoreMap2D extends View {
     private Drawable d;
 
     private SSWhalley ssWhalley;
+
+    private DBManager dbManager;
+
+    //positions already used in aisle
+    private ArrayList<Float> alreadyUsedPos = new ArrayList<>();
 
     public StoreMap2D(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -125,6 +133,90 @@ public class StoreMap2D extends View {
         shadowPaint.setMaskFilter(new BlurMaskFilter(8, BlurMaskFilter.Blur.NORMAL));
     }
 
+    private void drawNameInAisle(Canvas canvas, String name, int aisle, int side, float dist) {
+        String aisleName = "aisle_" + (side == 0 ? aisle + 1 : aisle) + "_" + (side == 0 ? aisle : aisle - 1);
+        //Log.i(TAG, "drawNameInAisle: looking for name " + aisleName);
+
+        textPaint.setTextSize(5);
+        textPaint.setColor(textColor);
+
+
+        ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
+
+        for (SSWhalley.StoreElement element : elements) {
+            //FIXME: is there a faster way to find the correct element?
+            if (element.getId().equals(aisleName)) {
+                //find x center coord of aisle
+                RectF thisRect = element.getRect();
+                float x = thisRect.centerX();
+                float bottom = thisRect.bottom;
+
+                float len = thisRect.height();
+
+
+                float y = bottom - (len * dist);
+                if (alreadyUsedPos.contains(y)) {
+                    //Log.i(TAG, "TR?IGGERED");
+                    //adjust by placing directly above or below
+                    //y += textPaint.getTextSize() / 2;
+                    y -= 8;
+
+                    int min = 1;
+                    int max = 5;
+
+                    //y += (Math.random() * (max - min)) + min;
+                }
+
+
+
+                Log.i(TAG, "Drawing cat " + name + " at y coord " + y);
+                canvas.drawText(name, x, y, textPaint);
+
+                //add this dist from front to the arraylist so we'll know if it's already taken
+                alreadyUsedPos.add(y);
+
+            }
+        }
+    }
+
+    private void drawSubcatNames(Canvas canvas) {
+        //need to examine the db, fetch coords for each
+        //instantiate new DBManager object and open the db
+        dbManager = new DBManager(getContext());
+        dbManager.open();
+
+        //get cursor to read the db, advancing to first entry
+        Cursor cursor = dbManager.fetch(DatabaseHelper.SUBCAT_LOC_TABLE_NAME);
+
+        if (cursor != null) {
+            //move cursor to first row of table
+            if (cursor.moveToFirst()) {
+                //iterate over all rows in the subcats location table
+                do {
+                    //get the indices of the table cols
+                    int nameColIdx = cursor.getColumnIndex("subCatName");
+                    int aisleColIdx = cursor.getColumnIndex("aisle");
+                    int sideColIdx = cursor.getColumnIndex("side");
+                    int distFromFrontColIdx = cursor.getColumnIndex("distFromFront");
+
+
+                    if (nameColIdx >= 0 && aisleColIdx >= 0 && sideColIdx >=0 && distFromFrontColIdx >= 0) {
+                        String subCatName = cursor.getString(nameColIdx);
+                        int aisle = cursor.getInt(aisleColIdx);
+                        int side = cursor.getInt(sideColIdx);
+                        float distFromFront = cursor.getFloat(distFromFrontColIdx);
+
+                        drawNameInAisle(canvas, subCatName, aisle, side, distFromFront);
+                    }
+                    else {
+                        Log.e(TAG, "ERROR: column not found in table!!");
+                        break;
+                    }
+                } while (cursor.moveToNext());
+            }
+        }
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -157,12 +249,13 @@ public class StoreMap2D extends View {
         ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
 
         for (int i = 0; i < elements.size(); i++) {
-            if (i == 0) {
+            if (Objects.equals(elements.get(i).getId(), "frame")) {
                 textPaint.setColor(Color.parseColor("#f6def7"));
             } else {
                 textPaint.setColor(Color.parseColor("#cccccc"));
             }
 
+            //get actual rectangle bounds to be drawn on canvas
             RectF thisRect = elements.get(i).getRect();
 
             //save canvas state before possible rotation
@@ -173,10 +266,16 @@ public class StoreMap2D extends View {
             }
 
             canvas.drawRect(thisRect, textPaint);
+
+            //restore canvas to state it was in before rotation
             canvas.restore();
         }
 
-        //canvas.drawRect(SSWhalley.aisle1, textPaint);
+        //TODO: change this?
+        //draw in all of the subcategory names at appropriate location
+        drawSubcatNames(canvas);
+
+        alreadyUsedPos.clear();
 
         //return canvas to state it was in upon entering onDraw()
         canvas.restore();
@@ -319,12 +418,15 @@ public class StoreMap2D extends View {
     };
 
     private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
+        private final float MIN_SCALE = 0.1f;
+        private final float MAX_SCALE = 10.0f;
+
         @Override
         public boolean onScale(ScaleGestureDetector detector) {
             mScaleFactor *= detector.getScaleFactor();
 
             // Don't let the object get too small or too large.
-            mScaleFactor = Math.max(0.1f, Math.min(mScaleFactor, 5.0f));
+            mScaleFactor = Math.max(MIN_SCALE, Math.min(mScaleFactor, MAX_SCALE));
 
             invalidate();
             return true;

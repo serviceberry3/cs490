@@ -3,15 +3,25 @@ package weiner.noah.groceryguide;
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.os.Environment;
 
 public class DatabaseHelper extends SQLiteOpenHelper {
-    // Table Name
+    //table names
     public static final String PRODS_TABLE_NAME = "products";
     public static final String SUBCAT_LOC_TABLE_NAME = "subcat_loc";
 
     // Table columns
-    public static final String _ID = "prodId";
-    public static final String NAME = "subject";
+
+    //for products table
+    public static final String _ID = "_id";
+    public static final String PROD_ID = "prodId";
+    public static final String NAME = "name";
+
+    //for subcat loc table
+    public static final String SUBCAT_NAME = "subCatName";
+    public static final String AISLE = "aisle";
+    public static final String SIDE = "side";
+    public static final String DIST_FROM_FRONT = "distFromFront";
 
     // Database Information
     static final String DB_NAME = "prod.sqlite";

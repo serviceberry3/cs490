@@ -19,6 +19,7 @@ public class DBManager {
     public DBManager open() throws SQLException {
         dbHelper = new DatabaseHelper(context);
         database = dbHelper.getWritableDatabase();
+
         return this;
     }
 
@@ -34,13 +35,35 @@ public class DBManager {
     }
 
     //query the db
-    public Cursor fetch() {
-        String[] columns = new String[] { DatabaseHelper._ID, DatabaseHelper.NAME};
+    public Cursor fetch(String tableName) {
+        String[] columns = null;
+        Cursor cursor = null;
 
-        Cursor cursor = database.query(DatabaseHelper.PRODS_TABLE_NAME, columns, null, null, null, null, null);
+        //construct query
+        switch (tableName) {
+            case DatabaseHelper.PRODS_TABLE_NAME:
+                columns = new String[] { DatabaseHelper._ID, DatabaseHelper.PROD_ID, DatabaseHelper.NAME};
+                break;
+            case DatabaseHelper.SUBCAT_LOC_TABLE_NAME:
+                columns = new String[] {DatabaseHelper.SUBCAT_NAME, DatabaseHelper.AISLE, DatabaseHelper.SIDE, DatabaseHelper.DIST_FROM_FRONT};
+        }
 
+        //String[] columns = new String[] { DatabaseHelper._ID, DatabaseHelper.PROD_ID, DatabaseHelper.NAME};
+
+        if (columns != null) {
+            //get cursor using the db query
+            cursor = database.query(tableName, columns, null, null, null, null, null);
+        }
+        else {
+            return null;
+        }
+
+        //move cursor to first entry
         if (cursor != null) {
             cursor.moveToFirst();
+        }
+        else {
+            return null;
         }
         return cursor;
     }

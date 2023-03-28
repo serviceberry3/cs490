@@ -17,6 +17,8 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 
+import java.util.Objects;
+
 import weiner.noah.groceryguide.databinding.FragmentSecondBinding;
 
 public class SecondFragment extends Fragment {
@@ -29,22 +31,46 @@ public class SecondFragment extends Fragment {
 
     private SimpleCursorAdapter adapter;
 
-    final String[] from = new String[] { DatabaseHelper._ID, DatabaseHelper.SUBJECT, DatabaseHelper.DESC };
+    final String[] from = new String[] { DatabaseHelper._ID, DatabaseHelper.PROD_ID, DatabaseHelper.NAME };
     final int[] to = new int[] { R.id.id, R.id.title, R.id.desc };
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+    }
 
-        MainActivity mainActivity = (MainActivity) getActivity();
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        binding = FragmentSecondBinding.inflate(inflater, container, false);
+        listView = binding.listView;
+        return binding.getRoot();
+    }
 
+    //Called immediately after onCreateView(android.view.LayoutInflater, android.view.ViewGroup, android.os.Bundle) has returned,
+    // but before any saved state has been restored in to the view
+    public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+
+        /*
+        binding.buttonSecond.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                NavHostFragment.findNavController(SecondFragment.this).navigate(R.id.action_SecondFragment_to_FirstFragment);
+            }
+        });*/
+
+        //MainActivity mainActivity = (MainActivity) getActivity();
+
+        //instantiate new DBManager object and open the db
         dbManager = new DBManager(getActivity());
         dbManager.open();
-        Cursor cursor = dbManager.fetch();
 
-        listView = (ListView) mainActivity.findViewById(R.id.list_view);
-        listView.setEmptyView(mainActivity.findViewById(R.id.empty));
+        //get cursor to read the db, advancing to first entry
+        Cursor cursor = dbManager.fetch(DatabaseHelper.PRODS_TABLE_NAME);
 
+        listView.setEmptyView(binding.empty);
+
+        //SimpleCursorAdapter is easy adapter to map columns from a cursor to TextViews or ImageViews defined in an XML file.
         adapter = new SimpleCursorAdapter(getActivity(), R.layout.activity_view_record, cursor, from, to, 0);
         adapter.notifyDataSetChanged();
 
@@ -57,25 +83,6 @@ public class SecondFragment extends Fragment {
 
             }
         });
-    }
-
-    @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        binding = FragmentSecondBinding.inflate(inflater, container, false);
-        return binding.getRoot();
-
-    }
-
-    public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
-
-        /*
-        binding.buttonSecond.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                NavHostFragment.findNavController(SecondFragment.this).navigate(R.id.action_SecondFragment_to_FirstFragment);
-            }
-        });*/
     }
 
     @Override
