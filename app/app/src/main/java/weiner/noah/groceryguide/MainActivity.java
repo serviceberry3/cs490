@@ -2,13 +2,8 @@ package weiner.noah.groceryguide;
 
 import android.os.Bundle;
 
-import com.google.android.material.snackbar.Snackbar;
-
 import androidx.appcompat.app.AppCompatActivity;
 
-import android.view.View;
-
-import androidx.fragment.app.Fragment;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
 import androidx.navigation.fragment.NavHostFragment;
@@ -44,14 +39,14 @@ public class MainActivity extends AppCompatActivity {
         appBarConfiguration = new AppBarConfiguration.Builder(navController.getGraph()).build();
         NavigationUI.setupActionBarWithNavController(this, navController, appBarConfiguration);
 
-
+        /*
         //onclick listener for the fab button
         binding.fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 Snackbar.make(view, "FAB pressed", Snackbar.LENGTH_LONG).setAction("Action", null).show();
             }
-        });
+        });*/
     }
 
     @Override
@@ -76,7 +71,10 @@ public class MainActivity extends AppCompatActivity {
             NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment_content_main);
             assert navHostFragment != null;
             NavController navController = navHostFragment.getNavController();
-            navController.navigate(R.id.action_FirstFragment_to_SecondFragment);
+
+            //safely navigate (ie if we're already in the SecondFragment, this will fail gracefully)
+            NavWrapper.navigateSafe(navController, R.id.action_FirstFragment_to_SecondFragment, null);
+            //navController.navigate(R.id.action_FirstFragment_to_SecondFragment);
             return true;
         }
 

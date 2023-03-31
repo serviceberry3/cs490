@@ -16,7 +16,7 @@ public class FirstFragment extends Fragment {
     private FragmentFirstBinding binding;
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         //get the binding for fragment_first and its root view to display
         binding = FragmentFirstBinding.inflate(inflater, container, false);
 

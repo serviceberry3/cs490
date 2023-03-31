@@ -2,11 +2,16 @@ package weiner.noah.groceryguide;
 
 
 import android.graphics.RectF;
+import android.provider.ContactsContract;
+
 import java.util.ArrayList;
+import java.util.concurrent.CompletionStage;
 
 public class SSWhalley {
     private final ArrayList<StoreElement> lineList = new ArrayList<>();
     private final ArrayList<StoreElement> rectList = new ArrayList<>();
+
+    private final float aisleFrozen16Left = 87.0f;
 
     public SSWhalley() {
         //the outer box for the store
@@ -28,29 +33,33 @@ public class SSWhalley {
         rectList.add(new StoreElement(new RectF(397.11f, 0.38f, 685.86f, 37.71f), 0.00f, "wall_meatpackaged"));
         rectList.add(new StoreElement(new RectF(27.81f, 2.27f, 386.41f, 36.44f), 0.00f, "wall_dairyyogmilk"));
         rectList.add(new StoreElement(new RectF(1053.13f, 230.92f, 1079.24f, 798.84f), 0.00f, "wall_produce"));
+
         rectList.add(new StoreElement(new RectF(47.53f, 133.59f, 63.15f, 695.54f), 0.00f, "aisle_dairyeggcheese_frozen"));
-        rectList.add(new StoreElement(new RectF(87.18f, 137.93f, 102.80f, 696.99f), 0.00f, "aisle_frozen_16"));
-        rectList.add(new StoreElement(new RectF(124.89f, 134.00f, 141.96f, 700.27f), 0.00f, "aisle_16_15"));
-        rectList.add(new StoreElement(new RectF(167.35f, 130.72f, 184.42f, 698.44f), 0.00f, "aisle_15_14"));
-        rectList.add(new StoreElement(new RectF(209.38f, 132.18f, 226.44f, 702.79f), 0.00f, "aisle_14_13"));
-        rectList.add(new StoreElement(new RectF(251.41f, 130.72f, 267.02f, 698.44f), 0.00f, "aisle_13_12"));
-        rectList.add(new StoreElement(new RectF(291.99f, 197.16f, 310.50f, 701.34f), 0.00f, "aisle_12_11"));
-        rectList.add(new StoreElement(new RectF(336.92f, 194.27f, 356.88f, 701.34f), 0.00f, "aisle_11_10"));
+
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left, 137.93f, 102.80f, 696.99f), 0.00f, "aisle_frozen_16"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan, 134.00f, 141.96f, 700.27f), 0.00f, "aisle_16_15"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 2, 130.72f, aisleFrozen16Left + Constants.aisleSpan * 2 + Constants.aisleWidth, 698.44f), 0.00f, "aisle_15_14"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 3, 132.18f, aisleFrozen16Left + Constants.aisleSpan * 3 + Constants.aisleWidth, 702.79f), 0.00f, "aisle_14_13"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 4, 130.72f, aisleFrozen16Left + Constants.aisleSpan * 4 + Constants.aisleWidth, 698.44f), 0.00f, "aisle_13_12"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 5, 197.16f, aisleFrozen16Left + Constants.aisleSpan * 5 + Constants.aisleWidth, 701.34f), 0.00f, "aisle_12_11"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 6, 194.27f, aisleFrozen16Left + Constants.aisleSpan * 6 + Constants.aisleWidth, 701.34f), 0.00f, "aisle_11_10"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 7, 241.92f, aisleFrozen16Left + Constants.aisleSpan * 7 + Constants.aisleWidth, 696.99f), 0.00f, "aisle_10_9"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 8, 189.93f, aisleFrozen16Left + Constants.aisleSpan * 8 + Constants.aisleWidth, 698.44f), 0.00f, "aisle_9_8"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 9, 191.37f, aisleFrozen16Left + Constants.aisleSpan * 9 + Constants.aisleWidth, 698.44f), 0.00f, "aisle_8_7"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 10, 166.28f, aisleFrozen16Left + Constants.aisleSpan * 10 + Constants.aisleWidth, 699.34f), 0.00f, "aisle_7_6"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 11, 165.32f, aisleFrozen16Left + Constants.aisleSpan * 11 + Constants.aisleWidth, 681.98f), 0.00f, "aisle_6_5"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 12, 191.37f, aisleFrozen16Left + Constants.aisleSpan * 12 + Constants.aisleWidth, 696.99f), 0.00f, "aisle_5_4"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 13, 162.89f, aisleFrozen16Left + Constants.aisleSpan * 13 + Constants.aisleWidth, 681.05f), 0.00f, "aisle_4_3"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 14, 162.75f, aisleFrozen16Left + Constants.aisleSpan * 14 + Constants.aisleWidth, 669.30f), 0.00f, "aisle_3_"));
+
         rectList.add(new StoreElement(new RectF(904.85f, 618.24f, 1002.24f, 649.19f), 0.00f, "producebay_3"));
         rectList.add(new StoreElement(new RectF(903.40f, 545.78f, 997.89f, 578.17f), 0.00f, "producebay_4"));
         rectList.add(new StoreElement(new RectF(900.50f, 484.91f, 1006.59f, 514.40f), 0.00f, "producebay_5"));
         rectList.add(new StoreElement(new RectF(897.60f, 422.59f, 1003.69f, 452.09f), 0.00f, "producebay_6"));
         rectList.add(new StoreElement(new RectF(897.60f, 355.92f, 1003.69f, 385.42f), 0.00f, "producebay_7"));
         rectList.add(new StoreElement(new RectF(882.40f, -0.72f, 1001.59f, 39.78f), 0.45f, "bread"));
-        rectList.add(new StoreElement(new RectF(384.74f, 241.92f, 403.26f, 696.99f), 0.00f, "aisle_10_9"));
-        rectList.add(new StoreElement(new RectF(430.22f, 189.93f, 448.73f, 698.44f), 0.00f, "aisle_9_8"));
-        rectList.add(new StoreElement(new RectF(476.98f, 191.37f, 495.50f, 698.44f), 0.00f, "aisle_8_7"));
-        rectList.add(new StoreElement(new RectF(570.65f, 166.28f, 590.98f, 699.34f), 0.00f, "aisle_7_6"));
-        rectList.add(new StoreElement(new RectF(617.58f, 165.32f, 637.91f, 681.98f), 0.00f, "aisle_6_5"));
-        rectList.add(new StoreElement(new RectF(525.18f, 191.37f, 543.69f, 696.99f), 0.00f, "aisle_5_4"));
-        rectList.add(new StoreElement(new RectF(715.18f, 162.89f, 738.04f, 681.05f), 0.00f, "aisle_4_3"));
         rectList.add(new StoreElement(new RectF(742.04f, 162.43f, 840.93f, 189.03f), 0.00f, "grabngo"));
-        rectList.add(new StoreElement(new RectF(663.15f, 162.75f, 683.48f, 669.30f), 0.00f, "aisle_3_"));
+
         rectList.add(new StoreElement(new RectF(834.23f, 830.46f, 941.47f, 862.42f), -89.64f, "snackbay"));
         rectList.add(new StoreElement(new RectF(858.12f, 193.42f, 940.58f, 222.00f), 50.75f, "cheese"));
         rectList.add(new StoreElement(new RectF(942.04f, 240.40f, 1022.29f, 268.69f), 0.00f, "pastries"));

@@ -1,27 +1,31 @@
 package weiner.noah.groceryguide;
 
 import android.content.Context;
-import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.database.Cursor;
 import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.Point;
+import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
+import android.text.Layout;
+import android.text.StaticLayout;
+import android.text.TextPaint;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.util.Pair;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
-import android.widget.LinearLayout;
 
 import androidx.core.content.res.ResourcesCompat;
-import androidx.core.view.MotionEventCompat;
 import androidx.core.view.ViewCompat;
 
 import java.util.ArrayList;
@@ -32,7 +36,8 @@ public class StoreMap2D extends View {
     public boolean mShowText;
     public int textPos;
 
-    public Paint textPaint, piePaint, shadowPaint;
+    public Paint textPaint, shadowPaint;
+    public TextPaint subCatTextPaint;
 
     public float textWidth = 10;
     public float textHeight = 10;
@@ -40,6 +45,9 @@ public class StoreMap2D extends View {
 
     private ScaleGestureDetector mScaleDetector;
     private float mScaleFactor = 1.f;
+
+    Matrix drawMatrix = new Matrix();
+    Path transformedPath = new Path();
 
     private final int INVALID_POINTER_ID = -1;
     private final int AXIS_X_MIN = 0;
@@ -64,12 +72,28 @@ public class StoreMap2D extends View {
 
     private Drawable d;
 
-    private SSWhalley ssWhalley;
+    private final SSWhalley ssWhalley;
 
     private DBManager dbManager;
 
-    //positions already used in aisle
-    private ArrayList<Float> alreadyUsedPos = new ArrayList<>();
+    //labels that have been drawn, along with their x,y coordinates
+    private final ArrayList<Pair<PointF, String>> drawnLabels = new ArrayList<>();
+
+    // These matrices will be used to move and zoom image
+    Matrix matrix = new Matrix();
+    Matrix savedMatrix = new Matrix();
+
+    // Remember some things for zooming
+    PointF start = new PointF();
+    PointF mid = new PointF();
+    float oldDist = 1f;
+
+    // We can be in one of these 3 states
+    static final int NONE = 0;
+    static final int PAN = 1;
+    static final int ZOOM = 2;
+    int mode = NONE;
+
 
     public StoreMap2D(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -124,22 +148,21 @@ public class StoreMap2D extends View {
             textPaint.setTextSize(textHeight);
         }
 
-        piePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        piePaint.setStyle(Paint.Style.FILL);
-        piePaint.setTextSize(textHeight);
-
         shadowPaint = new Paint(0);
         shadowPaint.setColor(0xff101010);
         shadowPaint.setMaskFilter(new BlurMaskFilter(8, BlurMaskFilter.Blur.NORMAL));
+
+        subCatTextPaint = new TextPaint();
     }
 
     private void drawNameInAisle(Canvas canvas, String name, int aisle, int side, float dist) {
         String aisleName = "aisle_" + (side == 0 ? aisle + 1 : aisle) + "_" + (side == 0 ? aisle : aisle - 1);
         //Log.i(TAG, "drawNameInAisle: looking for name " + aisleName);
 
-        textPaint.setTextSize(5);
-        textPaint.setColor(textColor);
+        subCatTextPaint.setTextSize(Constants.catNameTextSize);
+        subCatTextPaint.setColor(textColor);
 
+        StaticLayout mTextLayout;
 
         ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
 
@@ -155,26 +178,34 @@ public class StoreMap2D extends View {
 
 
                 float y = bottom - (len * dist);
-                if (alreadyUsedPos.contains(y)) {
-                    //Log.i(TAG, "TR?IGGERED");
-                    //adjust by placing directly above or below
-                    //y += textPaint.getTextSize() / 2;
-                    y -= 8;
 
-                    int min = 1;
-                    int max = 5;
 
-                    //y += (Math.random() * (max - min)) + min;
+                //go through and see if any category name label have already used the same y position
+                for (Pair<PointF, String> p : drawnLabels) {
+                    if (p.first.y == y) {
+                        Log.i(TAG, "TRIGGERED for category " + name + ": position " + y + " already used same y pos for category " + p.second + "!");
+
+                        //check how long the name that's in the way is. if it's long enough that it will wrap, we need to lower this label by 2*text size
+                        //adjust by placing directly above or below
+                        y += (p.second.length() > Constants.catNameTextWidth) ? Constants.catNameTextSize * 2 : Constants.catNameTextSize;
+                    }
+
                 }
 
-
-
+                mTextLayout = new StaticLayout(name, subCatTextPaint, Constants.catNameTextWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
                 Log.i(TAG, "Drawing cat " + name + " at y coord " + y);
-                canvas.drawText(name, x, y, textPaint);
+                //canvas.drawText(name, x, y, textPaint);
 
+                canvas.save();
+
+                canvas.translate(x, y);
+                mTextLayout.draw(canvas);
+                canvas.restore();
+
+                PointF pt = new PointF(x, y);
+                Pair<PointF, String> newPair = new Pair<PointF, String>(pt, name);
                 //add this dist from front to the arraylist so we'll know if it's already taken
-                alreadyUsedPos.add(y);
-
+                drawnLabels.add(newPair);
             }
         }
     }
@@ -221,6 +252,8 @@ public class StoreMap2D extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
+        canvas.setMatrix(matrix);
+
         //dims are 2200x1375
         //dims are actually 1999x1080
         int ht = getHeight();
@@ -228,9 +261,11 @@ public class StoreMap2D extends View {
         //Log.i(TAG, "Canvas dims are height " + ht + " and width " + width);
 
         canvas.save();
+
+        /*
         canvas.translate(mPosX, mPosY);
         Log.i(TAG, "mScaleFactor is " + mScaleFactor);
-        canvas.scale(mScaleFactor, mScaleFactor);
+        canvas.scale(mScaleFactor, mScaleFactor);*/
 
         /*
         textPaint.setTextSize(100);
@@ -275,7 +310,7 @@ public class StoreMap2D extends View {
         //draw in all of the subcategory names at appropriate location
         drawSubcatNames(canvas);
 
-        alreadyUsedPos.clear();
+        drawnLabels.clear();
 
         //return canvas to state it was in upon entering onDraw()
         canvas.restore();
@@ -301,6 +336,7 @@ public class StoreMap2D extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
+        /*
         // Let the ScaleGestureDetector inspect all events.
         mScaleDetector.onTouchEvent(ev);
 
@@ -368,6 +404,73 @@ public class StoreMap2D extends View {
             }
         }
         return true;
+         */
+        PanZoomWithTouch(ev);
+
+        invalidate();//necessary to repaint the canvas
+        return true;
+
+    }
+
+    void PanZoomWithTouch(MotionEvent event){
+        switch (event.getAction() & MotionEvent.ACTION_MASK) {
+            case MotionEvent.ACTION_DOWN://when first finger down, get first point
+                savedMatrix.set(matrix);
+                start.set(event.getX(), event.getY());
+                Log.d(TAG, "mode=PAN");
+                mode = PAN;
+                break;
+            case MotionEvent.ACTION_POINTER_DOWN://when 2nd finger down, get second point
+                oldDist = spacing(event);
+                Log.d(TAG, "oldDist=" + oldDist);
+                if (oldDist > 10f) {
+                    savedMatrix.set(matrix);
+                    midPoint(mid, event); //then get the mide point as centre for zoom
+                    mode = ZOOM;
+                    Log.d(TAG, "mode=ZOOM");
+                }
+                break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_POINTER_UP:       //when both fingers are released, do nothing
+                mode = NONE;
+                Log.d(TAG, "mode=NONE");
+                break;
+            case MotionEvent.ACTION_MOVE:     //when fingers are dragged, transform matrix for panning
+                if (mode == PAN) {
+                    // ...
+                    matrix.set(savedMatrix);
+                    matrix.postTranslate(event.getX() - start.x,
+                            event.getY() - start.y);
+                    Log.d(TAG,"Mapping rect");
+                    //start.set(event.getX(), event.getY());
+                }
+                else if (mode == ZOOM) { //if pinch_zoom, calculate distance ratio for zoom
+                    float newDist = spacing(event);
+                    Log.d(TAG, "newDist=" + newDist);
+                    if (newDist > 10f) {
+                        matrix.set(savedMatrix);
+                        float scale = newDist / oldDist;
+                        matrix.postScale(scale, scale, mid.x, mid.y);
+                    }
+                }
+                break;
+        }
+    }
+
+    /** Determine the space between the first two fingers */
+    private float spacing(MotionEvent event) {
+        // ...
+        float x = event.getX(0) - event.getX(1);
+        float y = event.getY(0) - event.getY(1);
+        return (float)Math.sqrt(x * x + y * y);
+    }
+
+    /** Calculate the mid point of the first two fingers */
+    private void midPoint(PointF point, MotionEvent event) {
+        // ...
+        float x = event.getX(0) + event.getX(1);
+        float y = event.getY(0) + event.getY(1);
+        point.set(x / 2, y / 2);
     }
 
     /**
@@ -423,12 +526,16 @@ public class StoreMap2D extends View {
 
         @Override
         public boolean onScale(ScaleGestureDetector detector) {
+            /*
             mScaleFactor *= detector.getScaleFactor();
 
             // Don't let the object get too small or too large.
             mScaleFactor = Math.max(MIN_SCALE, Math.min(mScaleFactor, MAX_SCALE));
 
             invalidate();
+            */
+
+
             return true;
         }
     }
