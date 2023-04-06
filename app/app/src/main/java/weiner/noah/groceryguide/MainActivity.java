@@ -15,10 +15,19 @@ import weiner.noah.groceryguide.databinding.ActivityMainBinding;
 import android.view.Menu;
 import android.view.MenuItem;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class MainActivity extends AppCompatActivity {
 
     private AppBarConfiguration appBarConfiguration;
     private ActivityMainBinding binding;
+
+    NavHostFragment navHostFragment;
+    NavController navController;
+
+    //list of shopping lists
+    List<ShoppingList> shoppingLists = new ArrayList<ShoppingList>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,9 +44,12 @@ public class MainActivity extends AppCompatActivity {
         setSupportActionBar(binding.toolbar);
 
         //get the NavController
-        NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_content_main);
+        navController = Navigation.findNavController(this, R.id.nav_host_fragment_content_main);
         appBarConfiguration = new AppBarConfiguration.Builder(navController.getGraph()).build();
         NavigationUI.setupActionBarWithNavController(this, navController, appBarConfiguration);
+
+        //make one default shopping list
+        shoppingLists.add(new ShoppingList());
 
         /*
         //onclick listener for the fab button
@@ -58,23 +70,19 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
+        //handle action bar menu item clicks here. The action bar will automatically handle clicks on the Home/Up button, as long as you specify parent activity in AndroidManifest.xml
         int id = item.getItemId();
 
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
+        if (id == R.id.action_view_map) {
+            NavWrapper.navigateSafe(navController, R.id.action_BrowseProductsFragment_to_MapFragment, null);
+
             return true;
         }
-        else if (id == R.id.action_db_browse) {
-            NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment_content_main);
-            assert navHostFragment != null;
-            NavController navController = navHostFragment.getNavController();
 
-            //safely navigate (ie if we're already in the SecondFragment, this will fail gracefully)
-            NavWrapper.navigateSafe(navController, R.id.action_FirstFragment_to_SecondFragment, null);
-            //navController.navigate(R.id.action_FirstFragment_to_SecondFragment);
+        else if (id == R.id.action_db_browse) {
+            //safely navigate (ie if we're already in the MapFragment, this will fail gracefully)
+            NavWrapper.navigateSafe(navController, R.id.action_MapFragment_to_BrowseProductsFragment, null);
+
             return true;
         }
 
@@ -87,5 +95,10 @@ public class MainActivity extends AppCompatActivity {
         NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_content_main);
 
         return NavigationUI.navigateUp(navController, appBarConfiguration) || super.onSupportNavigateUp();
+    }
+
+
+    public void addProdToShoppingList(int listIdx, Product prod) {
+        shoppingLists.get(listIdx).addProduct(prod);
     }
 }

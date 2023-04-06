@@ -5,12 +5,15 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
+import android.util.Log;
 
 public class DBManager {
     private DatabaseHelper dbHelper;
     private Context context;
 
     private SQLiteDatabase database;
+
+    private final String TAG = "DBManager";
 
     public DBManager(Context c) {
         context = c;
@@ -35,11 +38,13 @@ public class DBManager {
     }
 
     //query the db
-    public Cursor fetch(String tableName) {
+    public Cursor fetch(String tableName, Query query) {
         String[] columns = null;
         Cursor cursor = null;
 
         //construct query
+
+        //which columns do we want to fetch?
         switch (tableName) {
             case DatabaseHelper.PRODS_TABLE_NAME:
                 columns = new String[] { DatabaseHelper._ID, DatabaseHelper.PROD_ID, DatabaseHelper.NAME};
@@ -48,11 +53,11 @@ public class DBManager {
                 columns = new String[] {DatabaseHelper.SUBCAT_NAME, DatabaseHelper.AISLE, DatabaseHelper.SIDE, DatabaseHelper.DIST_FROM_FRONT};
         }
 
-        //String[] columns = new String[] { DatabaseHelper._ID, DatabaseHelper.PROD_ID, DatabaseHelper.NAME};
+        Log.i(TAG, "calling fetch() with SQL where statement " + query.getWhereSelectionStatement() + " and args " + query.getPreparedArgs());
 
         if (columns != null) {
-            //get cursor using the db query
-            cursor = database.query(tableName, columns, null, null, null, null, null);
+            //get cursor using the db query, passing in our filtering statement and ordering specification
+            cursor = database.query(tableName, columns, query.getWhereSelectionStatement(), query.getPreparedArgs() != null ? query.getPreparedArgs().toArray(new String[0]) : null, null, null, query.getOrderBy());
         }
         else {
             return null;

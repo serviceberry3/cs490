@@ -3,10 +3,26 @@
     android:layout_width="fill_parent"
     android:layout_height="fill_parent" >
 
+    <EditText
+        android:id="@+id/search_bar"
+        android:layout_width="match_parent"
+        android:layout_height="30dp"
+        android:background="#CCCCCC"
+        android:ems="10"
+        android:inputType="textPersonName"
+        android:autofillHints="Enter product name"
+        android:layout_marginTop="10dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="10dp">
+
+        <requestFocus />
+    </EditText>
+
     <ListView
         android:id="@+id/list_view"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_marginTop="50dp"
         android:dividerHeight="1dp"
         android:padding="10dp" >
     </ListView>

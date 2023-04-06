@@ -7,22 +7,22 @@
 
     <fragment
         android:id="@+id/FirstFragment"
-        android:name="weiner.noah.groceryguide.FirstFragment"
+        android:name="weiner.noah.groceryguide.MapFragment"
         android:label="@string/first_fragment_label"
         tools:layout="@layout/fragment_first">
 
         <action
-            android:id="@+id/action_FirstFragment_to_SecondFragment"
+            android:id="@+id/action_MapFragment_to_BrowseProductsFragment"
             app:destination="@id/SecondFragment" />
     </fragment>
     <fragment
         android:id="@+id/SecondFragment"
-        android:name="weiner.noah.groceryguide.SecondFragment"
+        android:name="weiner.noah.groceryguide.BrowseProductsFragment"
         android:label="@string/second_fragment_label"
         tools:layout="@layout/fragment_second">
 
         <action
-            android:id="@+id/action_SecondFragment_to_FirstFragment"
+            android:id="@+id/action_BrowseProductsFragment_to_MapFragment"
             app:destination="@id/FirstFragment" />
     </fragment>
 </navigation>

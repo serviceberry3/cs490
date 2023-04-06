@@ -12,4 +12,7 @@ public class Constants {
 
     //width that subcat text can occupy on side of aisle
     public static final int catNameTextWidth = 20;
+
+
+    public static final String sqlSelectProduct = "SELECT cast(prodId as text), name, cast(aisle as text), cast(rootCatId as text), rootCatName, cast(subCatId as text), subCatName FROM products";
 }

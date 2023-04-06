@@ -118,7 +118,7 @@ class AnnotatorGUI(QWidget):
       #detail_popup = FixedWidthMessageDialog(f"Details for class {crn}", client.data)
       #detail_popup.exec()
 
-    #function called on hitting enter of pressing search button. query the db.
+    #function called on hitting enter OR pressing search button. query the db.
     def search_call_back():
       self.app.setOverrideCursor(QCursor(Qt.WaitCursor))
 

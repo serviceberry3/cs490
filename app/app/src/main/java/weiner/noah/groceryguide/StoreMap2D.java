@@ -217,7 +217,7 @@ public class StoreMap2D extends View {
         dbManager.open();
 
         //get cursor to read the db, advancing to first entry
-        Cursor cursor = dbManager.fetch(DatabaseHelper.SUBCAT_LOC_TABLE_NAME);
+        Cursor cursor = dbManager.fetch(DatabaseHelper.SUBCAT_LOC_TABLE_NAME, new Query());
 
         if (cursor != null) {
             //move cursor to first row of table
