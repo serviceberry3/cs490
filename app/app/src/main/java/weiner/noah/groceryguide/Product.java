@@ -18,4 +18,20 @@ public class Product {
         this.subCatId = subCatId;
         this.subCatName = subCatName;
     }
+
+    public int getProdId() {
+        return prodId;
+    }
+
+    public int getSubCatId() {
+        return subCatId;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getSubCatName() {
+        return subCatName;
+    }
 }

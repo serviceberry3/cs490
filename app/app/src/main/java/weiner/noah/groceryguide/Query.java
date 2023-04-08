@@ -20,10 +20,25 @@ public class Query {
 
     public Query(QueryArgs args) {
         this.queryArgs = args;
+        this.preparedArgs = new ArrayList<String>();
 
         //this can be changed based on which columns we want to filter for the query
-        colsToFilter.add(DatabaseHelper.NAME);
-        colsToFilter.add(DatabaseHelper.SUBCAT_NAME);
+        if (this.queryArgs.getName() != null) {
+            colsToFilter.add(DatabaseHelper.NAME);
+
+            //generate the prepared statement arguments (to be used as selectionArgs parameter in SQLiteDatabase.query())
+            preparedArgs.add("%" + queryArgs.getName() + "%");
+
+        }
+        if (this.queryArgs.getSubCatName() != null) {
+            colsToFilter.add(DatabaseHelper.SUBCAT_NAME);
+            preparedArgs.add("%" + queryArgs.getSubCatName() + "%");
+
+        }
+        if (this.queryArgs.getProdId() != null) {
+            colsToFilter.add(DatabaseHelper.PROD_ID);
+            preparedArgs.add("%" + queryArgs.getProdId().toString() + "%");
+        }
     }
 
     public String getOrderBy() {
@@ -44,7 +59,6 @@ public class Query {
 
     //generate the query strings required to plug into SQLiteDatabase.query()
     public void generateSelection() {
-        this.preparedArgs = new ArrayList<String>();
 
         //general SQL query statement is contained in Constants
 
@@ -54,7 +68,7 @@ public class Query {
         int i = 0;
 
         for (String colName : colsToFilter) {
-            where.append(colName).append(" LIKE ? ");
+            where.append("CAST(").append(colName).append(" AS VARCHAR)").append(" LIKE ? ");
 
             //insert OR unless we're on the last filter name
             if (i != colsToFilter.size() - 1) {
@@ -64,11 +78,8 @@ public class Query {
             i++;
         }
 
-        //generate the prepared statement arguments (to be used as selectionArgs parameter in SQLiteDatabase.query())
-        preparedArgs.add("%" + queryArgs.getName() + "%");
-        preparedArgs.add("%" + queryArgs.getSubCatName() + "%");
 
         //select how to order results
-        orderBy = "subCatId ASC, aisle ASC, rootCatId ASC, prodId ASC";
+        orderBy = "subCatId ASC, aisle ASC";
     }
 }

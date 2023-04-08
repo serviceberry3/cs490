@@ -29,6 +29,7 @@ import androidx.core.content.res.ResourcesCompat;
 import androidx.core.view.ViewCompat;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 public class StoreMap2D extends View {
@@ -94,6 +95,8 @@ public class StoreMap2D extends View {
     static final int ZOOM = 2;
     int mode = NONE;
 
+    private final List<Dot> dots = new ArrayList<Dot>();
+
 
     public StoreMap2D(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -121,6 +124,18 @@ public class StoreMap2D extends View {
 
         //init the Paint
         init();
+    }
+
+    private class Dot {
+        int aisle;
+        int side;
+        float distFromFront;
+
+        public Dot(int aisle, int side, float distFromFront) {
+            this.aisle = aisle;
+            this.side = side;
+            this.distFromFront = distFromFront;
+        }
     }
 
 
@@ -153,6 +168,38 @@ public class StoreMap2D extends View {
         shadowPaint.setMaskFilter(new BlurMaskFilter(8, BlurMaskFilter.Blur.NORMAL));
 
         subCatTextPaint = new TextPaint();
+    }
+
+    //draw a dot at a certain position on map
+    public void drawDots(Canvas canvas) {
+        ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
+
+        //draw all the dots in the list
+        for (Dot d : dots) {
+            String aisleName = "aisle_" + (d.side == 0 ? d.aisle + 1 : d.aisle) + "_" + (d.side == 0 ? d.aisle : d.aisle - 1);
+            for (SSWhalley.StoreElement element : elements) {
+                //FIXME: is there a faster way to find the correct element?
+                if (element.getId().equals(aisleName)) {
+                    //find x center coord of aisle
+                    RectF thisRect = element.getRect();
+                    float x = thisRect.centerX();
+                    float bottom = thisRect.bottom;
+
+                    float len = thisRect.height();
+
+
+                    float y = bottom - (len * d.distFromFront);
+
+                    canvas.drawCircle(x, y, 4, new Paint(Color.RED));
+                }
+            }
+        }
+    }
+
+
+    public void addDot(int aisle, int side, float distFromFront) {
+        Log.i(TAG, "adding dot at aisle " + aisle + ", side " + side + ", distFromFront " + distFromFront);
+        dots.add(new Dot(aisle, side, distFromFront));
     }
 
     private void drawNameInAisle(Canvas canvas, String name, int aisle, int side, float dist) {
@@ -217,7 +264,7 @@ public class StoreMap2D extends View {
         dbManager.open();
 
         //get cursor to read the db, advancing to first entry
-        Cursor cursor = dbManager.fetch(DatabaseHelper.SUBCAT_LOC_TABLE_NAME, new Query());
+        Cursor cursor = dbManager.fetch(DatabaseHelper.SUBCAT_LOC_TABLE_NAME, new Query(), null);
 
         if (cursor != null) {
             //move cursor to first row of table
@@ -309,6 +356,8 @@ public class StoreMap2D extends View {
         //TODO: change this?
         //draw in all of the subcategory names at appropriate location
         drawSubcatNames(canvas);
+
+        drawDots(canvas);
 
         drawnLabels.clear();
 

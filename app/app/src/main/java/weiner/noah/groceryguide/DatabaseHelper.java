@@ -19,6 +19,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     //for subcat loc table
     public static final String SUBCAT_NAME = "subCatName";
+    public static final String SUBCAT_ID = "subCatId";
     public static final String AISLE = "aisle";
     public static final String SIDE = "side";
     public static final String DIST_FROM_FRONT = "distFromFront";

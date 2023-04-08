@@ -14,5 +14,5 @@ public class Constants {
     public static final int catNameTextWidth = 20;
 
 
-    public static final String sqlSelectProduct = "SELECT cast(prodId as text), name, cast(aisle as text), cast(rootCatId as text), rootCatName, cast(subCatId as text), subCatName FROM products";
+    public static final String sqlSelectProduct = "SELECT cast(prodId as text), name, cast(aisle as text), cast(rootCatId as text), rootCatName, cast(subCatId as text), subCatName, subCatId FROM products";
 }

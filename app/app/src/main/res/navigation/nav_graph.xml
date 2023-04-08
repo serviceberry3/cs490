@@ -3,26 +3,45 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/nav_graph"
-    app:startDestination="@id/FirstFragment">
+    app:startDestination="@id/MapFragment">
 
     <fragment
-        android:id="@+id/FirstFragment"
+        android:id="@+id/MapFragment"
         android:name="weiner.noah.groceryguide.MapFragment"
-        android:label="@string/first_fragment_label"
-        tools:layout="@layout/fragment_first">
+        android:label="@string/map_fragment_label"
+        tools:layout="@layout/fragment_map">
 
         <action
             android:id="@+id/action_MapFragment_to_BrowseProductsFragment"
-            app:destination="@id/SecondFragment" />
+            app:destination="@id/BrowseProductsFragment" />
+        <action
+            android:id="@+id/action_MapFragment_to_ShoppingListFragment"
+            app:destination="@id/ShoppingListFragment" />
     </fragment>
     <fragment
-        android:id="@+id/SecondFragment"
+        android:id="@+id/BrowseProductsFragment"
         android:name="weiner.noah.groceryguide.BrowseProductsFragment"
-        android:label="@string/second_fragment_label"
-        tools:layout="@layout/fragment_second">
+        android:label="@string/prod_fragment_label"
+        tools:layout="@layout/fragment_products">
 
         <action
             android:id="@+id/action_BrowseProductsFragment_to_MapFragment"
-            app:destination="@id/FirstFragment" />
+            app:destination="@id/MapFragment" />
+        <action
+            android:id="@+id/action_BrowseProductsFragment_to_ShoppingListFragment"
+            app:destination="@id/ShoppingListFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/ShoppingListFragment"
+        android:name="weiner.noah.groceryguide.ShoppingListFragment"
+        android:label="@string/list_fragment_label"
+        tools:layout="@layout/fragment_shopping_list">
+
+        <action
+            android:id="@+id/action_ShoppingListFragment_to_MapFragment"
+            app:destination="@id/MapFragment" />
+        <action
+            android:id="@+id/action_ShoppingListFragment_to_BrowseProductsFragment"
+            app:destination="@id/BrowseProductsFragment" />
     </fragment>
 </navigation>

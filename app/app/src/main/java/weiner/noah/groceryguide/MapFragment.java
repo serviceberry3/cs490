@@ -6,18 +6,43 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentResultListener;
 
-import weiner.noah.groceryguide.databinding.FragmentFirstBinding;
+import weiner.noah.groceryguide.databinding.FragmentMapBinding;
 
 public class MapFragment extends Fragment {
 
-    private FragmentFirstBinding binding;
+    private FragmentMapBinding binding;
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        //listen for results sent to this fragment
+        getParentFragmentManager().setFragmentResultListener("drawDot", this, new FragmentResultListener() {
+            @Override
+            public void onFragmentResult(@NonNull String requestKey, @NonNull Bundle bundle) {
+                // We use a String here, but any type that can be put in a Bundle is supported
+                int aisle = bundle.getInt("aisle");
+                int side = bundle.getInt("side");
+                float distFromFront = bundle.getFloat("distFromFront");
+
+
+
+
+                //draw the dot
+                binding.storeMap.addDot(aisle, side, distFromFront);
+                binding.storeMap.invalidate();
+            }
+        });
+    }
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         //get the binding for fragment_first and its root view to display
-        binding = FragmentFirstBinding.inflate(inflater, container, false);
+        binding = FragmentMapBinding.inflate(inflater, container, false);
 
         return binding.getRoot();
     }

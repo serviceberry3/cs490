@@ -21,15 +21,18 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.navigation.NavController;
+import androidx.navigation.Navigation;
 
+import java.util.Objects;
 
-import weiner.noah.groceryguide.databinding.FragmentSecondBinding;
+import weiner.noah.groceryguide.databinding.FragmentProductsBinding;
 
 
 public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuItemClickListener {
     private final String TAG = "SecondFragment";
 
-    private FragmentSecondBinding binding;
+    private FragmentProductsBinding binding;
 
     private DBManager dbManager;
 
@@ -51,14 +54,18 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
     final String[] from = new String[] { DatabaseHelper.PROD_ID, DatabaseHelper.NAME };
     final int[] to = new int[] { R.id.prod_id, R.id.prod_name };
 
+    NavController navController;
+
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        navController = Navigation.findNavController(requireActivity(), R.id.nav_host_fragment_content_main);
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        binding = FragmentSecondBinding.inflate(inflater, container, false);
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        binding = FragmentProductsBinding.inflate(inflater, container, false);
         listView = binding.listView;
         searchBar = binding.searchBar;
         return binding.getRoot();
@@ -84,7 +91,7 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
         dbManager.open();
 
         //get cursor to read the db, advancing to first entry
-        cursor = dbManager.fetch(DatabaseHelper.PRODS_TABLE_NAME, new Query());
+        cursor = dbManager.fetch(DatabaseHelper.PRODS_TABLE_NAME, new Query(), null);
 
         //by default, listview just displays some text indicating no entries were found
         listView.setEmptyView(binding.empty);
@@ -149,7 +156,79 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
     }
 
     public void showProdOnMap() {
+        int x, y, subCatId = 0;
+        int aisle = 0, side = 0;
+        float distFromFront = 0;
+        x=20;
+        y=20;
 
+        //get the ID of product we want to query
+        TextView idText = (TextView) ((ViewGroup) selectedView).getChildAt(0);
+        int prodId = Integer.parseInt(idText.getText().toString());
+
+        QueryArgs args = new QueryArgs("prod", prodId);
+        Query q = new Query(args);
+        q.generateSelection();
+
+        //get cursor to read the db, advancing to first entry
+        cursor = dbManager.fetch(DatabaseHelper.PRODS_TABLE_NAME, q, null);
+
+        //get subcat ID num for this prod
+        if (cursor != null) {
+            if (cursor.moveToFirst()) {
+                int subCatIdColIdx = cursor.getColumnIndex("subCatId");
+
+                if (subCatIdColIdx >= 0) {
+                    subCatId = cursor.getInt(subCatIdColIdx);
+                    Log.i(TAG, "found subcat ID for product number " + prodId + ": " + subCatId);
+                }
+                else {
+                    Log.i(TAG, "NO subCatId col idx found!");
+                }
+            }
+        }
+        else {
+            Log.i(TAG, "Cursor is null!!");
+        }
+
+
+        args = new QueryArgs("subcat", subCatId);
+        q = new Query(args);
+        q.generateSelection();
+
+        //now take the subCatId, run query to the location table, get first location of that subcatid
+        cursor = dbManager.fetch(DatabaseHelper.SUBCAT_LOC_TABLE_NAME, q, null);
+
+
+        if (cursor != null) {
+            if (cursor.moveToFirst()) {
+                int aisleColIdx = cursor.getColumnIndex("aisle");
+                int sideColIdx = cursor.getColumnIndex("side");
+                int distFromFrontColIdx = cursor.getColumnIndex("distFromFront");
+
+                aisle = cursor.getInt(aisleColIdx);
+                side = cursor.getInt(sideColIdx);
+                distFromFront = cursor.getFloat(distFromFrontColIdx);
+            }
+        }
+        else {
+            Log.i(TAG, "Cursor is null!!");
+        }
+
+
+        Bundle result = new Bundle();
+
+        //result.putInt("x", x);
+        //result.putInt("y", y);
+
+        result.putInt("aisle", aisle);
+        result.putInt("side", side);
+        result.putFloat("distFromFront", distFromFront);
+
+        //set result which will be picked up by MapFragment
+        getParentFragmentManager().setFragmentResult("drawDot", result);
+
+        NavWrapper.navigateSafe(navController, R.id.action_BrowseProductsFragment_to_MapFragment, null);
     }
 
     public void addProdToList() {
@@ -177,7 +256,7 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
         Query query = new Query(args);
         query.generateSelection();
 
-        cursor = dbManager.fetch(DatabaseHelper.PRODS_TABLE_NAME, query);
+        cursor = dbManager.fetch(DatabaseHelper.PRODS_TABLE_NAME, query, null);
         Log.i(TAG, cursor.getString(1));
 
         adapter.changeCursor(cursor);

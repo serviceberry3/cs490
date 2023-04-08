@@ -38,7 +38,7 @@ public class DBManager {
     }
 
     //query the db
-    public Cursor fetch(String tableName, Query query) {
+    public Cursor fetch(String tableName, Query query, String[] cols) {
         String[] columns = null;
         Cursor cursor = null;
 
@@ -47,10 +47,16 @@ public class DBManager {
         //which columns do we want to fetch?
         switch (tableName) {
             case DatabaseHelper.PRODS_TABLE_NAME:
-                columns = new String[] { DatabaseHelper._ID, DatabaseHelper.PROD_ID, DatabaseHelper.NAME};
+                columns = new String[] { DatabaseHelper._ID, DatabaseHelper.PROD_ID, DatabaseHelper.NAME, DatabaseHelper.SUBCAT_ID};
                 break;
             case DatabaseHelper.SUBCAT_LOC_TABLE_NAME:
-                columns = new String[] {DatabaseHelper.SUBCAT_NAME, DatabaseHelper.AISLE, DatabaseHelper.SIDE, DatabaseHelper.DIST_FROM_FRONT};
+                columns = new String[] {DatabaseHelper.SUBCAT_NAME, DatabaseHelper.AISLE, DatabaseHelper.SIDE, DatabaseHelper.DIST_FROM_FRONT, DatabaseHelper.SUBCAT_ID};
+                break;
+        }
+
+        //override
+        if (cols != null) {
+            columns = cols;
         }
 
         Log.i(TAG, "calling fetch() with SQL where statement " + query.getWhereSelectionStatement() + " and args " + query.getPreparedArgs());

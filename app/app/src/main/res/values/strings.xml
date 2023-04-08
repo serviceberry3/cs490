@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">GroceryGuide</string>
-    <string name="action_settings">Map</string>
+    <string name="action_map">Map</string>
+    <string name="action_view_list">Shopping List</string>
     <string name="action_db_browse">Browse Products</string>
 
 
@@ -8,8 +9,9 @@
     <string name="action_add_prod_to_shop_list">Add to shopping list</string>
 
     <!-- Strings used for fragments for navigation -->
-    <string name="first_fragment_label">Stop &amp; Shop Whalley Ave</string>
-    <string name="second_fragment_label">Browse Products</string>
+    <string name="map_fragment_label">Stop &amp; Shop Whalley Ave</string>
+    <string name="prod_fragment_label">Browse Products</string>
+    <string name="list_fragment_label">Shopping List</string>
     <string name="next">Next</string>
     <string name="previous">Previous</string>
 

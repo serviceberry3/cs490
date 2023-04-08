@@ -7,10 +7,10 @@
     tools:context=".MapFragment">
 
     <weiner.noah.groceryguide.StoreMap2D
+        android:id="@+id/store_map"
         app:showText="true"
         app:labelPosition="left"
         android:layout_height="match_parent"
         android:layout_width="match_parent"/>
-
 
 </LinearLayout>

@@ -14,4 +14,8 @@ public class ShoppingList {
     public void addProduct(Product prod) {
         products.add(prod);
     }
+
+    public List<Product> getProdList() {
+        return products;
+    }
 }

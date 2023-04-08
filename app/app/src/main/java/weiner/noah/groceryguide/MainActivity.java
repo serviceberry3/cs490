@@ -12,11 +12,13 @@ import androidx.navigation.ui.NavigationUI;
 
 import weiner.noah.groceryguide.databinding.ActivityMainBinding;
 
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -28,6 +30,8 @@ public class MainActivity extends AppCompatActivity {
 
     //list of shopping lists
     List<ShoppingList> shoppingLists = new ArrayList<ShoppingList>();
+
+    private String TAG = "MainActivity";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,22 +72,64 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
+    public void navToMap() {
+        int currFrag = Objects.requireNonNull(navController.getCurrentDestination()).getId();
+
+        switch (currFrag) {
+            case R.id.BrowseProductsFragment:
+                //safely navigate (ie if we're already in the MapFragment, this will fail gracefully)
+                NavWrapper.navigateSafe(navController, R.id.action_BrowseProductsFragment_to_MapFragment, null);
+                break;
+            case R.id.ShoppingListFragment:
+                NavWrapper.navigateSafe(navController, R.id.action_ShoppingListFragment_to_MapFragment, null);
+                break;
+        }
+    }
+
+    public void navToProd() {
+        //get currently active fragment (the current destination)
+        int currFrag = Objects.requireNonNull(navController.getCurrentDestination()).getId();
+
+        switch (currFrag) {
+            case R.id.MapFragment:
+                //safely navigate (ie if we're already in the MapFragment, this will fail gracefully)
+                NavWrapper.navigateSafe(navController, R.id.action_MapFragment_to_BrowseProductsFragment, null);
+                break;
+            case R.id.ShoppingListFragment:
+                NavWrapper.navigateSafe(navController, R.id.action_ShoppingListFragment_to_BrowseProductsFragment, null);
+                break;
+        }
+    }
+
+    public void navToList() {
+        int currFrag = Objects.requireNonNull(navController.getCurrentDestination()).getId();
+
+        switch (currFrag) {
+            case R.id.MapFragment:
+                //safely navigate (ie if we're already in the MapFragment, this will fail gracefully)
+                NavWrapper.navigateSafe(navController, R.id.action_MapFragment_to_ShoppingListFragment, null);
+                break;
+            case R.id.BrowseProductsFragment:
+                NavWrapper.navigateSafe(navController, R.id.action_BrowseProductsFragment_to_ShoppingListFragment, null);
+                break;
+        }
+    }
+
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         //handle action bar menu item clicks here. The action bar will automatically handle clicks on the Home/Up button, as long as you specify parent activity in AndroidManifest.xml
         int id = item.getItemId();
 
-        if (id == R.id.action_view_map) {
-            NavWrapper.navigateSafe(navController, R.id.action_BrowseProductsFragment_to_MapFragment, null);
-
-            return true;
-        }
-
-        else if (id == R.id.action_db_browse) {
-            //safely navigate (ie if we're already in the MapFragment, this will fail gracefully)
-            NavWrapper.navigateSafe(navController, R.id.action_MapFragment_to_BrowseProductsFragment, null);
-
-            return true;
+        switch (id) {
+            case R.id.action_view_map:
+                navToMap();
+                return true;
+            case R.id.action_db_browse:
+                navToProd();
+                return true;
+            case R.id.action_view_list:
+                navToList();
+                return true;
         }
 
         return super.onOptionsItemSelected(item);
