@@ -9,11 +9,15 @@ public class QueryArgs {
     private String subCatName = null;
     private Integer subCatId = null;
 
+    private String orderByStr = null;
+
+    //constructor for searching by subcat name or prod name
     public QueryArgs(String name, String subCat) {
         this.name = name;
         this.subCatName = subCat;
     }
 
+    //constructor for searching by either subcat ID num or product ID number
     public QueryArgs(String name, int id) {
         if (Objects.equals(name, "prod")) {
             this.prodId = id;
@@ -39,6 +43,11 @@ public class QueryArgs {
         this.subCatName = text;
     }
 
+    //set how want SQL query results to be ordered
+    public void setOrderByStr(String text) {
+        this.orderByStr = text;
+    }
+
     public Integer getProdId() {
         return this.prodId;
     }
@@ -53,5 +62,9 @@ public class QueryArgs {
 
     public String getSubCatName() {
         return this.subCatName;
+    }
+
+    public String getOrderByStr() {
+        return this.orderByStr;
     }
 }

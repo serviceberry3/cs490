@@ -13,6 +13,7 @@ import androidx.fragment.app.FragmentResultListener;
 import weiner.noah.groceryguide.databinding.FragmentMapBinding;
 
 public class MapFragment extends Fragment {
+    private String TAG = "MapFragment";
 
     private FragmentMapBinding binding;
 
@@ -25,15 +26,17 @@ public class MapFragment extends Fragment {
             @Override
             public void onFragmentResult(@NonNull String requestKey, @NonNull Bundle bundle) {
                 // We use a String here, but any type that can be put in a Bundle is supported
-                int aisle = bundle.getInt("aisle");
-                int side = bundle.getInt("side");
-                float distFromFront = bundle.getFloat("distFromFront");
+//                int[] aisleArr = bundle.getIntArray("aisleArr");
+//                int[] sideArr = bundle.getIntArray("sideArr");
+//                float[] distFromFrontArr = bundle.getFloatArray("distFromFrontArr");
+                int[] idArr = bundle.getIntArray("idArr");
 
+                //add dot to list of dots for each subcat label for the subcat of interest
+                for (int i = 0; i < idArr.length; i++) {
+                    binding.storeMap.addDot(idArr[i]);
+                }
 
-
-
-                //draw the dot
-                binding.storeMap.addDot(aisle, side, distFromFront);
+                //add zone to list of zones
                 binding.storeMap.invalidate();
             }
         });

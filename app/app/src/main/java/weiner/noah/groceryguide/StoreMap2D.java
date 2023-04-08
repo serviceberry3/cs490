@@ -37,7 +37,8 @@ public class StoreMap2D extends View {
     public boolean mShowText;
     public int textPos;
 
-    public Paint textPaint, shadowPaint;
+    //TODO: what to use shadowPaint for?
+    public Paint textPaint, shadowPaint, dotPaint;
     public TextPaint subCatTextPaint;
 
     public float textWidth = 10;
@@ -78,7 +79,7 @@ public class StoreMap2D extends View {
     private DBManager dbManager;
 
     //labels that have been drawn, along with their x,y coordinates
-    private final ArrayList<Pair<PointF, String>> drawnLabels = new ArrayList<>();
+    private final ArrayList<SubcatLabel> drawnLabels = new ArrayList<SubcatLabel>();
 
     // These matrices will be used to move and zoom image
     Matrix matrix = new Matrix();
@@ -95,6 +96,7 @@ public class StoreMap2D extends View {
     static final int ZOOM = 2;
     int mode = NONE;
 
+    //list of all dots to be drawn
     private final List<Dot> dots = new ArrayList<Dot>();
 
 
@@ -126,15 +128,78 @@ public class StoreMap2D extends View {
         init();
     }
 
+    //a subcategory label (represents ONE SINGLE text label)
+    private class SubcatLabel {
+        PointF pt;
+        String txt;
+        int id;
+
+        public SubcatLabel(PointF pt, String txt, int id) {
+            this.pt = pt;
+            this.txt = txt;
+            this.id = id;
+        }
+
+        public int getId() {
+            return id;
+        }
+
+        public String getTxt() {
+            return txt;
+        }
+
+        public PointF getPt() {
+            return pt;
+        }
+    }
+
+    //this class represents a dot at a certain pt in an aisle to indicate presence of certain subcat
     private class Dot {
         int aisle;
         int side;
         float distFromFront;
 
+        int id = -1;
+
         public Dot(int aisle, int side, float distFromFront) {
             this.aisle = aisle;
             this.side = side;
             this.distFromFront = distFromFront;
+        }
+
+        public Dot(int id) {
+            this.id = id;
+        }
+
+        public int getId() {
+            return id;
+        }
+
+        public float getDistFromFront() {
+            return distFromFront;
+        }
+
+        public int getAisle() {
+            return aisle;
+        }
+
+        public int getSide() {
+            return side;
+        }
+    }
+
+    //another way to indicate presence of subcat on the map. The zone is drawn as a rectangle outline around an area of subcat labels of the same subcat
+    private class Zone {
+        int aisle;
+        int side;
+        float distFromFrontMin;
+        float distFromFrontMax;
+
+        public Zone(int aisle, int side, float distFromFrontMin, float distFromFrontMax) {
+            this.aisle = aisle;
+            this.side = side;
+            this.distFromFrontMin = distFromFrontMin;
+            this.distFromFrontMax = distFromFrontMax;
         }
     }
 
@@ -167,42 +232,65 @@ public class StoreMap2D extends View {
         shadowPaint.setColor(0xff101010);
         shadowPaint.setMaskFilter(new BlurMaskFilter(8, BlurMaskFilter.Blur.NORMAL));
 
+        //init the dot paint
+        dotPaint = new Paint();
+        dotPaint.setColor(Color.RED);
+
         subCatTextPaint = new TextPaint();
     }
 
     //draw a dot at a certain position on map
     public void drawDots(Canvas canvas) {
+        //get the aisles
         ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
 
-        //draw all the dots in the list
+        //draw all the Dot objects in the list
         for (Dot d : dots) {
-            String aisleName = "aisle_" + (d.side == 0 ? d.aisle + 1 : d.aisle) + "_" + (d.side == 0 ? d.aisle : d.aisle - 1);
-            for (SSWhalley.StoreElement element : elements) {
-                //FIXME: is there a faster way to find the correct element?
-                if (element.getId().equals(aisleName)) {
-                    //find x center coord of aisle
-                    RectF thisRect = element.getRect();
-                    float x = thisRect.centerX();
-                    float bottom = thisRect.bottom;
+            int id = d.getId();
+            if (id > 0) {
+                //now that we have the id number of the label that the dot should be drawn next to, we can simply look in the drawnLabels array, find label with that id,
+                //and draw dot next to that label
 
-                    float len = thisRect.height();
-
-
-                    float y = bottom - (len * d.distFromFront);
-
-                    canvas.drawCircle(x, y, 4, new Paint(Color.RED));
+                for (SubcatLabel l : drawnLabels) {
+                    if (l.getId() == id) {
+                        canvas.drawCircle(l.getPt().x + Math.min(l.getTxt().length(), Constants.catNameTextWidth) + 1f, l.getPt().y + (Constants.catNameTextSize / 2f) + 0.5f, 0.5f, dotPaint);
+                    }
                 }
+
+                /*PREVIOUS IMPLEM
+                String aisleName = "aisle_" + (d.side == 0 ? d.aisle + 1 : d.aisle) + "_" + (d.side == 0 ? d.aisle : d.aisle - 1);
+
+                for (SSWhalley.StoreElement element : elements) {
+                    //FIXME: is there a faster way to find the correct element?
+                    if (element.getId().equals(aisleName)) {
+                        //find x center coord of aisle
+                        RectF thisRect = element.getRect();
+                        float x = thisRect.centerX() + Constants.catNameTextWidth;
+                        float bottom = thisRect.bottom;
+
+                        float len = thisRect.height();
+
+                        float y = bottom - (len * d.distFromFront);
+
+                        canvas.drawCircle(x, y, 0.5f, dotPaint);
+                    }
+                }*/
             }
+
         }
     }
-
 
     public void addDot(int aisle, int side, float distFromFront) {
         Log.i(TAG, "adding dot at aisle " + aisle + ", side " + side + ", distFromFront " + distFromFront);
         dots.add(new Dot(aisle, side, distFromFront));
     }
 
-    private void drawNameInAisle(Canvas canvas, String name, int aisle, int side, float dist) {
+    public void addDot(int id) {
+        Log.i(TAG, "adding dot for subcat lbl with id " + id);
+        dots.add(new Dot(id));
+    }
+
+    private void drawNameInAisle(Canvas canvas, int id, String name, int aisle, int side, float dist) {
         String aisleName = "aisle_" + (side == 0 ? aisle + 1 : aisle) + "_" + (side == 0 ? aisle : aisle - 1);
         //Log.i(TAG, "drawNameInAisle: looking for name " + aisleName);
 
@@ -223,18 +311,16 @@ public class StoreMap2D extends View {
 
                 float len = thisRect.height();
 
-
                 float y = bottom - (len * dist);
 
-
                 //go through and see if any category name label have already used the same y position
-                for (Pair<PointF, String> p : drawnLabels) {
-                    if (p.first.y == y) {
-                        Log.i(TAG, "TRIGGERED for category " + name + ": position " + y + " already used same y pos for category " + p.second + "!");
+                for (SubcatLabel l : drawnLabels) {
+                    if (l.getPt().y == y) {
+                        Log.i(TAG, "TRIGGERED for category " + name + ": position " + y + " already used same y pos for category " + l.getTxt() + "!");
 
                         //check how long the name that's in the way is. if it's long enough that it will wrap, we need to lower this label by 2*text size
-                        //adjust by placing directly above or below
-                        y += (p.second.length() > Constants.catNameTextWidth) ? Constants.catNameTextSize * 2 : Constants.catNameTextSize;
+                        //adjust by placing directly above or below. otherwise we can just lower the label by 1*text size
+                        y += (l.getTxt().length() > Constants.catNameTextWidth) ? Constants.catNameTextSize * 2 : Constants.catNameTextSize;
                     }
 
                 }
@@ -250,9 +336,12 @@ public class StoreMap2D extends View {
                 canvas.restore();
 
                 PointF pt = new PointF(x, y);
-                Pair<PointF, String> newPair = new Pair<PointF, String>(pt, name);
-                //add this dist from front to the arraylist so we'll know if it's already taken
-                drawnLabels.add(newPair);
+                //Pair<PointF, String> newPair = new Pair<PointF, String>(pt, name);
+                SubcatLabel newLabel = new SubcatLabel(pt, name, id);
+
+                //add this subcat label to the drawn labels arraylist
+                //note that the PointF of this label is the actual final loc where lbl was drawn
+                drawnLabels.add(newLabel);
             }
         }
     }
@@ -276,15 +365,17 @@ public class StoreMap2D extends View {
                     int aisleColIdx = cursor.getColumnIndex("aisle");
                     int sideColIdx = cursor.getColumnIndex("side");
                     int distFromFrontColIdx = cursor.getColumnIndex("distFromFront");
+                    int idColIdx = cursor.getColumnIndex("_id");
 
 
-                    if (nameColIdx >= 0 && aisleColIdx >= 0 && sideColIdx >=0 && distFromFrontColIdx >= 0) {
+                    if (nameColIdx >= 0 && aisleColIdx >= 0 && sideColIdx >=0 && distFromFrontColIdx >= 0 && idColIdx >= 0) {
                         String subCatName = cursor.getString(nameColIdx);
                         int aisle = cursor.getInt(aisleColIdx);
                         int side = cursor.getInt(sideColIdx);
                         float distFromFront = cursor.getFloat(distFromFrontColIdx);
+                        int id = cursor.getInt(idColIdx);
 
-                        drawNameInAisle(canvas, subCatName, aisle, side, distFromFront);
+                        drawNameInAisle(canvas, id, subCatName, aisle, side, distFromFront);
                     }
                     else {
                         Log.e(TAG, "ERROR: column not found in table!!");
@@ -357,6 +448,7 @@ public class StoreMap2D extends View {
         //draw in all of the subcategory names at appropriate location
         drawSubcatNames(canvas);
 
+        //draw aisle dots
         drawDots(canvas);
 
         drawnLabels.clear();

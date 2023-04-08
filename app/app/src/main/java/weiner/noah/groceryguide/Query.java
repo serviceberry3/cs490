@@ -6,7 +6,6 @@ import java.util.List;
 //An SQL database query
 public class Query {
     private QueryArgs queryArgs = null;
-
     public final ArrayList<String> colsToFilter = new ArrayList<String>();
 
     private String orderBy = null;
@@ -37,7 +36,11 @@ public class Query {
         }
         if (this.queryArgs.getProdId() != null) {
             colsToFilter.add(DatabaseHelper.PROD_ID);
-            preparedArgs.add("%" + queryArgs.getProdId().toString() + "%");
+            preparedArgs.add(queryArgs.getProdId().toString()); //if searching by prod ID, want to match specific ID num
+        }
+        if (this.queryArgs.getSubCatId() != null) {
+            colsToFilter.add(DatabaseHelper.SUBCAT_ID); //if searching by subcat ID, want to match specific ID num
+            preparedArgs.add(queryArgs.getSubCatId().toString());
         }
     }
 
@@ -78,8 +81,7 @@ public class Query {
             i++;
         }
 
-
-        //select how to order results
-        orderBy = "subCatId ASC, aisle ASC";
+        //select how to order results. if queryargs contains orderby string, use that; else, use default
+        orderBy = this.queryArgs.getOrderByStr() == null ? "subCatId ASC, aisle ASC" : this.queryArgs.getOrderByStr();
     }
 }
