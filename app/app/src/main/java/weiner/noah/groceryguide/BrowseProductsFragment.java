@@ -56,7 +56,7 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
     final String[] from = new String[] { DatabaseHelper.PROD_ID, DatabaseHelper.NAME };
     final int[] to = new int[] { R.id.prod_id, R.id.prod_name };
 
-    NavController navController;
+    private NavController navController;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -128,7 +128,6 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
                 queryDbWithSearch(s.toString());
             }
         });
-
     }
 
     public void showMenu(View v) {
@@ -158,101 +157,11 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
     }
 
     public void showProdOnMap() {
-        int subCatId = 0;
-        int aisle = 0, side = 0;
-        float distFromFrontMin = 0, distFromFrontMax = 0;
-
         //get the ID of product we want to query
         TextView idText = (TextView) ((ViewGroup) selectedView).getChildAt(0);
         int prodId = Integer.parseInt(idText.getText().toString());
 
-        QueryArgs args = new QueryArgs("prod", prodId);
-        Query q = new Query(args);
-        q.generateSelection();
-
-        //get cursor to read the db, advancing to first entry
-        cursor = dbManager.fetch(DatabaseHelper.PRODS_TABLE_NAME, q, null);
-
-        //get subcat ID num for this prod
-        if (cursor != null) {
-            if (cursor.moveToFirst()) {
-                int subCatIdColIdx = cursor.getColumnIndex("subCatId");
-
-                if (subCatIdColIdx >= 0) {
-                    subCatId = cursor.getInt(subCatIdColIdx);
-                    Log.i(TAG, "found subcat ID for product number " + prodId + ": " + subCatId);
-                }
-                else {
-                    Log.i(TAG, "NO subCatId col idx found!");
-                }
-            }
-        }
-        else {
-            Log.i(TAG, "Cursor is null!!");
-        }
-
-
-        args = new QueryArgs("subcat", subCatId);
-
-        //results will fetch all entries in location table for the specific subCatId we're requesting. sort results by distance from front of aisle in asc order
-        args.setOrderByStr("distFromFront ASC");
-        q = new Query(args);
-        q.generateSelection();
-
-        //now take the subCatId, run query to the location table, get first location of that subcatid
-        cursor = dbManager.fetch(DatabaseHelper.SUBCAT_LOC_TABLE_NAME, q, null);
-
-        if (cursor != null) {
-            if (cursor.moveToFirst()) {
-                int aisleColIdx = cursor.getColumnIndex("aisle");
-                int sideColIdx = cursor.getColumnIndex("side");
-                int distFromFrontColIdx = cursor.getColumnIndex("distFromFront");
-                int idColIdx = cursor.getColumnIndex("_id");
-
-                //count num rows in the cursor
-                int cnt = cursor.getCount();
-                float[] distFromFrontArr = new float[cnt];
-                int[] aisleArr = new int[cnt];
-                int[] sideArr = new int[cnt];
-                int[] idArr = new int[cnt];
-
-                int i = 0;
-
-                do {
-                    distFromFrontArr[i] = cursor.getFloat(distFromFrontColIdx);
-                    aisleArr[i] = cursor.getInt(aisleColIdx);
-                    sideArr[i] = cursor.getInt(sideColIdx);
-                    idArr[i] = cursor.getInt(idColIdx);
-
-                    i++;
-                } while (cursor.moveToNext());
-
-                //make Bundle to be sent to the MapFragment
-                Bundle result = new Bundle();
-
-//                result.putInt("aisle", aisle);
-//                result.putInt("side", side);
-//                result.putFloat("distFromFrontMin", distFromFrontMin);
-//                result.putFloat("distFromFrontMax", distFromFrontMax); //these two could be the same
-
-//                result.putIntArray("aisleArr", aisleArr);
-//                result.putIntArray("sideArr", sideArr);
-//                result.putFloatArray("distFromFrontArr", distFromFrontArr);
-                result.putIntArray("idArr", idArr);
-
-                //set result which will be picked up by MapFragment
-                getParentFragmentManager().setFragmentResult("drawDot", result);
-
-                NavWrapper.navigateSafe(navController, R.id.action_BrowseProductsFragment_to_MapFragment, null);
-            }
-            else {
-                Log.i(TAG, "Error: subcat for this prod was found, but NO location entry for that subcat");
-                Snackbar.make(binding.getRoot(), "Location of this product on the map cannot be determined :(", Snackbar.LENGTH_LONG).show();
-            }
-        }
-        else {
-            Log.i(TAG, "SQL cursor is null after querying subcat loc table with subcat ID " + subCatId + "!!");
-        }
+        MapUtils.showProdOnMap(navController, cursor, dbManager, idText, binding.getRoot(), getParentFragmentManager(), prodId, R.id.action_BrowseProductsFragment_to_MapFragment);
     }
 
     public void addProdToList() {

@@ -9,9 +9,7 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.Point;
 import android.graphics.PointF;
-import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.text.Layout;
@@ -19,14 +17,10 @@ import android.text.StaticLayout;
 import android.text.TextPaint;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.util.Pair;
-import android.view.GestureDetector;
 import android.view.MotionEvent;
-import android.view.ScaleGestureDetector;
 import android.view.View;
 
 import androidx.core.content.res.ResourcesCompat;
-import androidx.core.view.ViewCompat;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +39,6 @@ public class StoreMap2D extends View {
     public float textHeight = 10;
     public int textColor = Color.BLACK;
 
-    private ScaleGestureDetector mScaleDetector;
     private float mScaleFactor = 1.f;
 
     Matrix drawMatrix = new Matrix();
@@ -81,25 +74,34 @@ public class StoreMap2D extends View {
     //labels that have been drawn, along with their x,y coordinates
     private final ArrayList<SubcatLabel> drawnLabels = new ArrayList<SubcatLabel>();
 
-    // These matrices will be used to move and zoom image
+    //current transformation matrix for drawing Canvas that holds the map.
+    //this is used on every single call of onDraw(), so on each redraw of the map Canvas
     Matrix matrix = new Matrix();
+
+    //save the previous matrix when doing zoom and pan
     Matrix savedMatrix = new Matrix();
 
-    // Remember some things for zooming
-    PointF start = new PointF();
-    PointF mid = new PointF();
-    float oldDist = 1f;
+    //save some stuff for zooming
+    PointF touchStartingPt = new PointF();
+    PointF midPtBetweenFingers = new PointF();
 
-    // We can be in one of these 3 states
-    static final int NONE = 0;
-    static final int PAN = 1;
-    static final int ZOOM = 2;
-    int mode = NONE;
+
+    float initialDistBetweenFingers = 1f;
+
+    //zoom and pan: possible states
+    private enum zoomPanState {
+        STILL,
+        PAN,
+        ZOOM
+    }
+
+    //the current state we're in
+    zoomPanState currState = zoomPanState.STILL;
 
     //list of all dots to be drawn
     private final List<Dot> dots = new ArrayList<Dot>();
 
-
+    //constructor
     public StoreMap2D(Context context, AttributeSet attrs) {
         super(context, attrs);
 
@@ -119,7 +121,6 @@ public class StoreMap2D extends View {
 
         ssWhalley = new SSWhalley();
 
-        mScaleDetector = new ScaleGestureDetector(context, new ScaleListener());
         d = ResourcesCompat.getDrawable(getResources(), R.drawable.svg_floor, null);
         assert d != null;
         d.setBounds(left, top, right, bottom);
@@ -253,7 +254,7 @@ public class StoreMap2D extends View {
 
                 for (SubcatLabel l : drawnLabels) {
                     if (l.getId() == id) {
-                        canvas.drawCircle(l.getPt().x + Math.min(l.getTxt().length(), Constants.catNameTextWidth) + 1f, l.getPt().y + (Constants.catNameTextSize / 2f) + 0.5f, 0.5f, dotPaint);
+                        canvas.drawCircle(l.getPt().x + Math.min(l.getTxt().length(), Constants.catNameTextWidth) + Constants.dotsPadding, l.getPt().y + (Constants.catNameTextSize / 2f) + 0.5f, Constants.dotsRad, dotPaint);
                     }
                 }
 
@@ -390,14 +391,16 @@ public class StoreMap2D extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
+        //completely replace current canvas' transformation matrix with specified matrix. If the matrix param is null, then current matrix is reset to identity.
         canvas.setMatrix(matrix);
 
         //dims are 2200x1375
         //dims are actually 1999x1080
-        int ht = getHeight();
-        int width = getWidth();
+        //int ht = getHeight();
+        //int width = getWidth();
         //Log.i(TAG, "Canvas dims are height " + ht + " and width " + width);
 
+        //save canvas state before proceeding
         canvas.save();
 
         /*
@@ -477,207 +480,103 @@ public class StoreMap2D extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
-        /*
-        // Let the ScaleGestureDetector inspect all events.
-        mScaleDetector.onTouchEvent(ev);
-
-
-        final int action = MotionEventCompat.getActionMasked(ev);
-
-        switch (action) {
-            case MotionEvent.ACTION_DOWN: {
-                final int pointerIndex = MotionEventCompat.getActionIndex(ev);
-                final float x = MotionEventCompat.getX(ev, pointerIndex);
-                final float y = MotionEventCompat.getY(ev, pointerIndex);
-
-                // Remember where we started (for dragging)
-                mLastTouchX = x;
-                mLastTouchY = y;
-
-                // Save the ID of this pointer (for dragging)
-                mActivePointerId = MotionEventCompat.getPointerId(ev, 0);
-
-                break;
-            }
-
-            case MotionEvent.ACTION_MOVE: {
-                // Find the index of the active pointer and fetch its position
-                final int pointerIndex = MotionEventCompat.findPointerIndex(ev, mActivePointerId);
-
-                final float x = MotionEventCompat.getX(ev, pointerIndex);
-                final float y = MotionEventCompat.getY(ev, pointerIndex);
-
-                // Calculate the distance moved
-                final float dx = x - mLastTouchX;
-                final float dy = y - mLastTouchY;
-
-                mPosX += dx;
-                mPosY += dy;
-
-                invalidate();
-
-                // Remember this touch position for the next move event
-                mLastTouchX = x;
-                mLastTouchY = y;
-
-                break;
-            }
-
-            case MotionEvent.ACTION_UP:
-
-            case MotionEvent.ACTION_CANCEL: {
-                mActivePointerId = INVALID_POINTER_ID;
-                break;
-            }
-
-            case MotionEvent.ACTION_POINTER_UP: {
-                final int pointerIndex = MotionEventCompat.getActionIndex(ev);
-                final int pointerId = MotionEventCompat.getPointerId(ev, pointerIndex);
-
-                if (pointerId == mActivePointerId) {
-                    // This was our active pointer going up. Choose a new active pointer and adjust accordingly.
-                    final int newPointerIndex = pointerIndex == 0 ? 1 : 0;
-                    mLastTouchX = MotionEventCompat.getX(ev, newPointerIndex);
-                    mLastTouchY = MotionEventCompat.getY(ev, newPointerIndex);
-                    mActivePointerId = MotionEventCompat.getPointerId(ev, newPointerIndex);
-                }
-                break;
-            }
-        }
-        return true;
-         */
-        PanZoomWithTouch(ev);
+        zoomAndPan(ev);
 
         invalidate();//necessary to repaint the canvas
         return true;
-
     }
 
-    void PanZoomWithTouch(MotionEvent event){
+    public void scaleMatrix(int scaleX, int scaleY, int pX, int pY) {
+        matrix.postScale(scaleX, scaleY, pX, pY);
+    }
+
+    //handle all touch events on the store map
+    void zoomAndPan(MotionEvent event) {
+        //we maintain a state machine for the pan and zoom.
         switch (event.getAction() & MotionEvent.ACTION_MASK) {
-            case MotionEvent.ACTION_DOWN://when first finger down, get first point
+            //when first finger goes down, get first point (that finger is touching)
+            case MotionEvent.ACTION_DOWN:
+                //save the Canvas' current transformation matrix
                 savedMatrix.set(matrix);
-                start.set(event.getX(), event.getY());
-                Log.d(TAG, "mode=PAN");
-                mode = PAN;
+
+                //save starting (x,y) point of the finger
+                touchStartingPt.set(event.getX(), event.getY());
+
+                //set current state to panning, since only one finger has been set down
+                currState = zoomPanState.PAN;
                 break;
-            case MotionEvent.ACTION_POINTER_DOWN://when 2nd finger down, get second point
-                oldDist = spacing(event);
-                Log.d(TAG, "oldDist=" + oldDist);
-                if (oldDist > 10f) {
-                    savedMatrix.set(matrix);
-                    midPoint(mid, event); //then get the mide point as centre for zoom
-                    mode = ZOOM;
-                    Log.d(TAG, "mode=ZOOM");
-                }
+
+            //when 2nd finger goes down, get pt it's touching
+            case MotionEvent.ACTION_POINTER_DOWN:
+                //save initial distance between the two fingers
+                initialDistBetweenFingers = distFingers(event);
+
+                //the user must now be trying to zoom
+
+                //save Canvas' current transformation matrix, then find midpoint between the two fingers and save it into the variable
+                savedMatrix.set(matrix);
+                midPtFingers(midPtBetweenFingers, event);
+
+                //set current state to zooming, since now two fingers are down
+                currState = zoomPanState.ZOOM;
+
                 break;
+
+            //when both fingers are released, do nothing
             case MotionEvent.ACTION_UP:
-            case MotionEvent.ACTION_POINTER_UP:       //when both fingers are released, do nothing
-                mode = NONE;
-                Log.d(TAG, "mode=NONE");
+                //skip, proceed to next case (so that this functions like an OR statement)
+            case MotionEvent.ACTION_POINTER_UP:
+                //state returns to still
+                currState = zoomPanState.STILL;
                 break;
-            case MotionEvent.ACTION_MOVE:     //when fingers are dragged, transform matrix for panning
-                if (mode == PAN) {
-                    // ...
+
+            //when fingers are dragged, transform the matrix to create panning or zooming effect
+            case MotionEvent.ACTION_MOVE:
+                //if we're in pan state
+                if (currState == zoomPanState.PAN) {
+                    //set Canvas' matrix to what it was when the first finger was placed
                     matrix.set(savedMatrix);
-                    matrix.postTranslate(event.getX() - start.x,
-                            event.getY() - start.y);
-                    Log.d(TAG,"Mapping rect");
-                    //start.set(event.getX(), event.getY());
+
+                    //translate matrix appropriately to current finger position, relative to starting point
+                    matrix.postTranslate(event.getX() - touchStartingPt.x, event.getY() - touchStartingPt.y);
                 }
-                else if (mode == ZOOM) { //if pinch_zoom, calculate distance ratio for zoom
-                    float newDist = spacing(event);
-                    Log.d(TAG, "newDist=" + newDist);
-                    if (newDist > 10f) {
-                        matrix.set(savedMatrix);
-                        float scale = newDist / oldDist;
-                        matrix.postScale(scale, scale, mid.x, mid.y);
-                    }
+
+                //if we're in zoom state
+                else if (currState == zoomPanState.ZOOM) {
+                    //calculate the live updated Euclidean distance between fingers
+                    float newDist = distFingers(event);
+
+                    //restore matrix to what it was when second finger was placed
+                    matrix.set(savedMatrix);
+
+                    //compute scale ratio as new dist between fingers : old dist between fingers
+                    float scale = newDist / initialDistBetweenFingers;
+
+                    //scale the matrix appropriately around the given midpoint
+                    matrix.postScale(scale, scale, midPtBetweenFingers.x, midPtBetweenFingers.y);
                 }
                 break;
         }
     }
 
-    /** Determine the space between the first two fingers */
-    private float spacing(MotionEvent event) {
-        // ...
+
+    //determine Euclidean dist between points where two fingers are touching the screen
+    private float distFingers(MotionEvent event) {
+        //get x and y displacement between the two fingers
         float x = event.getX(0) - event.getX(1);
         float y = event.getY(0) - event.getY(1);
+
+        //compute Euclidean distance formula
         return (float)Math.sqrt(x * x + y * y);
     }
 
-    /** Calculate the mid point of the first two fingers */
-    private void midPoint(PointF point, MotionEvent event) {
+    //determine midpt between points where two fingers are touching the screen
+    private void midPtFingers(PointF point, MotionEvent event) {
         // ...
         float x = event.getX(0) + event.getX(1);
         float y = event.getY(0) + event.getY(1);
+
+
         point.set(x / 2, y / 2);
-    }
-
-    /**
-     * Sets the current viewport (defined by mCurrentViewport) to the given
-     * X and Y positions. Note that the Y value represents the topmost pixel position,
-     * and thus the bottom of the mCurrentViewport rectangle.
-     */
-    private void setViewportBottomLeft(float x, float y) {
-        /*
-         * Constrains within the scroll range. The scroll range is simply the viewport
-         * extremes (AXIS_X_MAX, etc.) minus the viewport size. For example, if the
-         * extremes were 0 and 10, and the viewport size was 2, the scroll range would
-         * be 0 to 8.
-         */
-
-        float curWidth = mCurrentViewport.width();
-        float curHeight = mCurrentViewport.height();
-        x = Math.max(AXIS_X_MIN, Math.min(x, AXIS_X_MAX - curWidth));
-        y = Math.max(AXIS_Y_MIN + curHeight, Math.min(y, AXIS_Y_MAX));
-
-        mCurrentViewport.set(x, y - curHeight, x + curWidth, y);
-
-        //Invalidates the View to update the display.
-        ViewCompat.postInvalidateOnAnimation(this);
-    }
-
-    //RectF is a float rectangle
-    // The current viewport. This rectangle represents the currently visible chart domain and range.
-    private RectF mCurrentViewport = new RectF(AXIS_X_MIN, AXIS_Y_MIN, AXIS_X_MAX, AXIS_Y_MAX);
-
-    //The current destination rectangle (in pixel coordinates) into which the chart data should be drawn.
-    private Rect mContentRect;
-
-    private final GestureDetector.SimpleOnGestureListener mGestureListener = new GestureDetector.SimpleOnGestureListener() {
-        @Override
-        public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
-            // Scrolling uses math based on the viewport (as opposed to math using pixels).
-
-            // Pixel offset is the offset in screen pixels, while viewport offset is the offset within the current viewport.
-            float viewportOffsetX = distanceX * mCurrentViewport.width() / mContentRect.width();
-            float viewportOffsetY = -distanceY * mCurrentViewport.height() / mContentRect.height();
-
-            // Updates the viewport, refreshes the display.
-            setViewportBottomLeft(mCurrentViewport.left + viewportOffsetX, mCurrentViewport.bottom + viewportOffsetY);
-
-            return true;
-        }
-    };
-
-    private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
-        private final float MIN_SCALE = 0.1f;
-        private final float MAX_SCALE = 10.0f;
-
-        @Override
-        public boolean onScale(ScaleGestureDetector detector) {
-            /*
-            mScaleFactor *= detector.getScaleFactor();
-
-            // Don't let the object get too small or too large.
-            mScaleFactor = Math.max(MIN_SCALE, Math.min(mScaleFactor, MAX_SCALE));
-
-            invalidate();
-            */
-
-
-            return true;
-        }
     }
 }

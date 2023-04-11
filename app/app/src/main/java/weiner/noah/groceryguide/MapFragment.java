@@ -40,6 +40,13 @@ public class MapFragment extends Fragment {
                 binding.storeMap.invalidate();
             }
         });
+
+        getParentFragmentManager().setFragmentResultListener("scale", this, new FragmentResultListener() {
+            @Override
+            public void onFragmentResult(@NonNull String requestKey, @NonNull Bundle result) {
+                binding.storeMap.scaleMatrix(result.getInt("scalex"), result.getInt("scaley"), result.getInt("px"), result.getInt("py"));
+            }
+        });
     }
 
     @Override
