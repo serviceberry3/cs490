@@ -125,7 +125,7 @@ public class StoreMap2D extends View {
         assert d != null;
         d.setBounds(left, top, right, bottom);
 
-        //init the Paint
+        //init stuff, including the Paint
         init();
     }
 
@@ -238,13 +238,15 @@ public class StoreMap2D extends View {
         dotPaint.setColor(Color.RED);
 
         subCatTextPaint = new TextPaint();
+
+        //initial translation / scale of the matrix so that map is centered in the window
+        matrix.postTranslate(0, (Constants.mapCanvHeight - Constants.mapFrameRectHeight) / 2);
+
+        setScale(0.8f, 0.8f, Constants.mapCanvWidth / 2, Constants.mapCanvHeight / 2);
     }
 
-    //draw a dot at a certain position on map
+    //draw a dot at a certain position on m ap
     public void drawDots(Canvas canvas) {
-        //get the aisles
-        ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
-
         //draw all the Dot objects in the list
         for (Dot d : dots) {
             int id = d.getId();
@@ -279,6 +281,46 @@ public class StoreMap2D extends View {
             }
 
         }
+    }
+
+    public void zoomOnSubcatLabels(Canvas canvas) {
+        //get the aisles
+        ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
+
+        //how far do the labels of interest span on x and y axis?
+        float ySpan;
+        float xSpan;
+
+        float xMin  = 5000;
+        float xMax = -1;
+        float yMin = 5000;
+        float yMax = -1;
+
+        //draw all the Dot objects in the list
+        for (StoreMap2D.Dot d : dots) {
+            int id = d.getId();
+
+            if (id > 0) {
+                //now that we have the id number of the label that the dot should be drawn next to, we can simply look in the drawnLabels array, find label with that id,
+                //and draw dot next to that label
+
+                for (StoreMap2D.SubcatLabel l : drawnLabels) {
+                    if (l.getId() == id) {
+                        xMin = Math.min(xMin, l.getPt().x);
+                        yMin = Math.min(yMin, l.getPt().y);
+                        xMax = Math.max(xMax, l.getPt().x);
+                        yMax = Math.max(yMax, l.getPt().y);
+
+                        //canvas.drawCircle(l.getPt().x + Math.min(l.getTxt().length(), Constants.catNameTextWidth) + Constants.dotsPadding, l.getPt().y + (Constants.catNameTextSize / 2f) + 0.5f, Constants.dotsRad, dotPaint);
+                    }
+                }
+            }
+        }
+
+        ySpan = yMax - yMin;
+        xSpan = xMax - xMin;
+
+        float xCentroid =
     }
 
     public void addDot(int aisle, int side, float distFromFront) {
@@ -394,11 +436,10 @@ public class StoreMap2D extends View {
         //completely replace current canvas' transformation matrix with specified matrix. If the matrix param is null, then current matrix is reset to identity.
         canvas.setMatrix(matrix);
 
-        //dims are 2200x1375
-        //dims are actually 1999x1080
+        //dims of the view itself are 1999hx1080w
         //int ht = getHeight();
         //int width = getWidth();
-        //Log.i(TAG, "Canvas dims are height " + ht + " and width " + width);
+        //Log.i(TAG, "Dims of the view are height " + ht + " and width " + width);
 
         //save canvas state before proceeding
         canvas.save();
@@ -486,8 +527,13 @@ public class StoreMap2D extends View {
         return true;
     }
 
-    public void scaleMatrix(int scaleX, int scaleY, int pX, int pY) {
+    //method for use by outside entities
+    public void setScale(float scaleX, float scaleY, float pX, float pY) {
         matrix.postScale(scaleX, scaleY, pX, pY);
+    }
+
+    public void setTranslation(float dx, float dy) {
+        matrix.postTranslate(dx, dy);
     }
 
     //handle all touch events on the store map
@@ -571,12 +617,10 @@ public class StoreMap2D extends View {
     }
 
     //determine midpt between points where two fingers are touching the screen
-    private void midPtFingers(PointF point, MotionEvent event) {
-        // ...
+    private void midPtFingers(PointF pt, MotionEvent event) {
         float x = event.getX(0) + event.getX(1);
         float y = event.getY(0) + event.getY(1);
 
-
-        point.set(x / 2, y / 2);
+        pt.set(x / 2, y / 2);
     }
 }

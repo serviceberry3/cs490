@@ -10,6 +10,8 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentResultListener;
 
+import java.util.ArrayList;
+
 import weiner.noah.groceryguide.databinding.FragmentMapBinding;
 
 public class MapFragment extends Fragment {
@@ -36,15 +38,11 @@ public class MapFragment extends Fragment {
                     binding.storeMap.addDot(idArr[i]);
                 }
 
+                //set scale and translate appropriately to zoom in on the area where the product lies
+                binding.storeMap.zoomOnSubcatLabels();
+
                 //add zone to list of zones
                 binding.storeMap.invalidate();
-            }
-        });
-
-        getParentFragmentManager().setFragmentResultListener("scale", this, new FragmentResultListener() {
-            @Override
-            public void onFragmentResult(@NonNull String requestKey, @NonNull Bundle result) {
-                binding.storeMap.scaleMatrix(result.getInt("scalex"), result.getInt("scaley"), result.getInt("px"), result.getInt("py"));
             }
         });
     }
@@ -56,6 +54,7 @@ public class MapFragment extends Fragment {
 
         return binding.getRoot();
     }
+
 
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);

@@ -19,4 +19,12 @@ public class Constants {
     public static final float dotsPadding = 2f;
 
     public static final String sqlSelectProduct = "SELECT cast(prodId as text), name, cast(aisle as text), cast(rootCatId as text), rootCatName, cast(subCatId as text), subCatName, subCatId FROM products";
+
+    public static final float mapTopMargin = 400f;
+
+    public static final float mapCanvHeight = 1999f;
+    public static final float mapCanvWidth = 1080f;
+
+    public static final float mapFrameRectHeight = 900f;
+    public static final float mapFrameRectWidth = 1080f;
 }

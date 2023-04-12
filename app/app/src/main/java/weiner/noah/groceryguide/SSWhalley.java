@@ -15,7 +15,7 @@ public class SSWhalley {
 
     public SSWhalley() {
         //the outer box for the store
-        rectList.add(new StoreElement(new RectF(1.41f, 0.12f, 1081.41f, 900.12f), 0.0f, "frame"));
+        rectList.add(new StoreElement(new RectF(0f, 0f, Constants.mapFrameRectWidth, Constants.mapFrameRectHeight), 0.0f, "frame"));
 
         //all of the store elements inside
         rectList.add(new StoreElement(new RectF(939.14f, 775.22f, 1017.92f, 799.01f), -29.26f, "producebay_1"));

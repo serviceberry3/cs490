@@ -65,17 +65,12 @@ public class MapUtils {
 
                 //count num rows in the cursor
                 int cnt = cursor.getCount();
-                float[] distFromFrontArr = new float[cnt];
-                int[] aisleArr = new int[cnt];
-                int[] sideArr = new int[cnt];
                 int[] idArr = new int[cnt];
 
                 int i = 0;
 
+                //iterate through all entries of the subcats location table whose subcat is the one of interest. get location data for each
                 do {
-                    distFromFrontArr[i] = cursor.getFloat(distFromFrontColIdx);
-                    aisleArr[i] = cursor.getInt(aisleColIdx);
-                    sideArr[i] = cursor.getInt(sideColIdx);
                     idArr[i] = cursor.getInt(idColIdx);
 
                     i++;
@@ -84,28 +79,10 @@ public class MapUtils {
                 //make Bundle to be sent to the MapFragment
                 Bundle result = new Bundle();
 
-                Bundle resultScale = new Bundle();
-
-//                result.putInt("aisle", aisle);
-//                result.putInt("side", side);
-//                result.putFloat("distFromFrontMin", distFromFrontMin);
-//                result.putFloat("distFromFrontMax", distFromFrontMax); //these two could be the same
-
-//                result.putIntArray("aisleArr", aisleArr);
-//                result.putIntArray("sideArr", sideArr);
-//                result.putFloatArray("distFromFrontArr", distFromFrontArr);
                 result.putIntArray("idArr", idArr);
 
                 //set result which will be picked up by MapFragment
                 parentFragmentManager.setFragmentResult("drawDot", result);
-
-
-                resultScale.putInt("scalex",5);
-                resultScale.putInt("scaley", 5);
-                resultScale.putInt("px", 100);
-                resultScale.putInt("py", 100);
-
-                parentFragmentManager.setFragmentResult("scale", resultScale);
 
                 NavWrapper.navigateSafe(navController, navAction, null);
             }
