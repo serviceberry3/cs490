@@ -43,7 +43,7 @@ public class StoreMap2D extends View {
 
     //point in canvas that's currently at the ctr of the screen
     private float xCtr, yCtr;
-    private float xCtrAbs, yCtrAbs;
+    private float xCameraCtr, yCameraCtr;
 
     Matrix drawMatrix = new Matrix();
     Path transformedPath = new Path();
@@ -82,6 +82,7 @@ public class StoreMap2D extends View {
     //current transformation matrix for drawing Canvas that holds the map.
     //this is used on every single call of onDraw(), so on each redraw of the map Canvas
     Matrix matrix = new Matrix();
+    Matrix cameraMatrix = new Matrix();
 
     //save the previous matrix when doing zoom and pan
     Matrix savedMatrix = new Matrix();
@@ -223,12 +224,34 @@ public class StoreMap2D extends View {
         requestLayout();
     }
 
+    //translate the "camera," ie if dx = 5, dy = 5, the map itself should move left 5, up 5
+    public void cameraTranslate(float dx, float dy) {
+        matrix.postTranslate(-1 * dx, -1 * dy);
+        xCameraCtr += dx * 0.8;
+        yCameraCtr += dy * 0.8;
+    }
+
+    public void cameraScale(float sx, float sy) {
+        matrix.postScale(sx, sy, xCameraCtr, yCameraCtr);
+    }
+
+    //translate the map itself, ie if dx = 5, dy = 5, the map itself should move right 5, down 5
+    public void mapTranslate(float dx, float dy) {
+        matrix.postTranslate(dx, dy);
+        xCameraCtr -= dx / 100;
+        //yCameraCtr -= dy;
+    }
+
+    public void mapScale(float sx, float sy) {
+        matrix.postScale(sx, sy, xCameraCtr, yCameraCtr);
+    }
+
     private void init() {
         xCtr = Constants.mapFrameRectCtrX;
         yCtr = Constants.mapFrameRectCtrY;
 
-        xCtrAbs = Constants.mapCanvCtrX;
-        yCtrAbs = Constants.mapCanvCtrY;
+        xCameraCtr = Constants.mapCanvCtrX;
+        yCameraCtr = Constants.mapCanvCtrY;
 
         textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         textPaint.setColor(textColor);
@@ -250,9 +273,9 @@ public class StoreMap2D extends View {
         subCatTextPaint = new TextPaint();
 
         //initial translation / scale of the matrix so that map is centered in the window
-        matrix.postTranslate(0, (Constants.mapCanvHeight - Constants.mapFrameRectHeight) / 2);
+        //cameraTranslate(0, -(Constants.mapCanvHeight - Constants.mapFrameRectHeight) / 2);
 
-        setScale(0.8f, 0.8f, Constants.mapCanvWidth / 2, Constants.mapCanvHeight / 2);
+        //cameraScale(0.8f, 0.8f);
 
         invalidate();
 
@@ -343,24 +366,21 @@ public class StoreMap2D extends View {
             float xCentroid = (xMin + xMax) / 2;
             float yCentroid = ((yMin + yMax) / 2) + (Constants.mapCanvHeight - Constants.mapFrameRectHeight) / 2;
 
-
-
             Log.i(TAG, "zoomOnSubCatLabels(): centroid is (" + xCentroid + ", " + yCentroid + ")");
 
-            matrix.postScale(1f, 1f, Constants.mapCanvWidth / 2, Constants.mapCanvHeight / 2);
+            cameraScale(1f, 1f);
 
             float dx = Constants.mapCanvCtrX - xCentroid;
             float dy = Constants.mapCanvCtrY - yCentroid;
 
             //translate to the point (xCentroid, yCentroid)
-            matrix.postTranslate(dx, dy);
-            xCtr -= dx;
-            yCtr -= dy;
+            cameraTranslate(-1 * dx, -1*dy);
 
-            //xCtrAbs = xCentroid;
-            //yCtrAbs = yCentroid;
+            xCameraCtr -= Constants.mapCanvWidth / 2 - dx;
+            yCameraCtr -= Constants.mapCanvHeight / 2 - dy;
 
-            matrix.postScale(20f, 20f, Constants.mapCanvWidth / 2 - dx, Constants.mapCanvHeight / 2 - dy);
+            //this scale is applied AFTER the above translation.
+            cameraScale(20f, 20f);
         }
     }
 
@@ -540,16 +560,16 @@ public class StoreMap2D extends View {
         //TODO: change this?
         //draw in all of the subcategory names at appropriate location
         drawSubcatLabels(canvas);
-        drawnLabelsSaved = subCatLabels;
 
         //draw aisle dots
         drawDots(canvas);
 
-        Log.i(TAG, "Drawing centroid at point (" + xCtr + ", " + yCtr + ")");
+        Log.i(TAG, "Drawing centroid (local) at point (" + xCtr + ", " + yCtr + ")");
+        Log.i(TAG, "Drawing centroid (camera) at point (" + xCameraCtr + ", " + yCameraCtr + ")");
 
         //FOR TESTING / DBUG
-        //canvas.drawCircle(xCtr, yCtr, 6, dotPaint);
-        //canvas.drawCircle(xCtrAbs, yCtrAbs, 6, subCatTextPaint);
+        canvas.drawCircle(xCtr, yCtr, 6, dotPaint);
+        canvas.drawCircle(xCameraCtr, yCameraCtr, 6, subCatTextPaint);
 
         //return canvas to state it was in upon entering onDraw()
         //canvas.restore();
@@ -579,15 +599,6 @@ public class StoreMap2D extends View {
 
         invalidate();//necessary to repaint the canvas
         return true;
-    }
-
-    //method for use by outside entities
-    public void setScale(float scaleX, float scaleY, float pX, float pY) {
-        matrix.postScale(scaleX, scaleY, pX, pY);
-    }
-
-    public void setTranslation(float dx, float dy) {
-        matrix.postTranslate(dx, dy);
     }
 
     //handle all touch events on the store map
@@ -638,7 +649,7 @@ public class StoreMap2D extends View {
                     matrix.set(savedMatrix);
 
                     //translate matrix appropriately to current finger position, relative to starting point
-                    matrix.postTranslate(event.getX() - touchStartingPt.x, event.getY() - touchStartingPt.y);
+                    mapTranslate(event.getX() - touchStartingPt.x, event.getY() - touchStartingPt.y);
                 }
 
                 //if we're in zoom state
