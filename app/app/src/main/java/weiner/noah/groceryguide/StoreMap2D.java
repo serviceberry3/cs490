@@ -31,8 +31,7 @@ public class StoreMap2D extends View {
     public boolean mShowText;
     public int textPos;
 
-    //TODO: what to use shadowPaint for?
-    public Paint textPaint, shadowPaint, dotPaint;
+    public Paint textPaint, dotPaint, cameraRectPaint, zoneOfInterestRectPaint;
     public TextPaint subCatTextPaint;
 
     public float textWidth = 10;
@@ -78,6 +77,9 @@ public class StoreMap2D extends View {
     //labels that have been drawn, along with their x,y coordinates
     private final ArrayList<SubcatLabel> subCatLabels = new ArrayList<SubcatLabel>();
     private ArrayList<SubcatLabel> drawnLabelsSaved;
+
+    //rects for zooming to product zone
+    private RectF src = null, dst = null, zone = null;
 
     //current transformation matrix for drawing Canvas that holds the map.
     //this is used on every single call of onDraw(), so on each redraw of the map Canvas
@@ -239,15 +241,26 @@ public class StoreMap2D extends View {
             textPaint.setTextSize(textHeight);
         }
 
+        /*
         shadowPaint = new Paint(0);
         shadowPaint.setColor(0xff101010);
         shadowPaint.setMaskFilter(new BlurMaskFilter(8, BlurMaskFilter.Blur.NORMAL));
+         */
 
         //init the dot paint
         dotPaint = new Paint();
         dotPaint.setColor(Color.RED);
 
         subCatTextPaint = new TextPaint();
+
+        cameraRectPaint = new Paint();
+        cameraRectPaint.setColor(Color.BLACK);
+        cameraRectPaint.setStyle(Paint.Style.STROKE);
+
+        zoneOfInterestRectPaint = new Paint();
+        zoneOfInterestRectPaint.setColor(Color.GREEN);
+        zoneOfInterestRectPaint.setStyle(Paint.Style.STROKE);
+        zoneOfInterestRectPaint.setStrokeWidth(Constants.zoneRectStrokeWidth);
 
         //initial translation / scale of the matrix so that map is centered in the window
         matrix.postTranslate(0, (Constants.mapCanvHeight - Constants.mapFrameRectHeight) / 2);
@@ -260,7 +273,7 @@ public class StoreMap2D extends View {
         loadSubcatNames();
     }
 
-    //draw a dot at a certain position on m ap
+    //draw a dot at a certain position on map
     public void drawDots(Canvas canvas) {
         //draw all the Dot objects in the list
         for (Dot d : dots) {
@@ -300,17 +313,23 @@ public class StoreMap2D extends View {
     public void zoomOnSubcatLabels() {
         Log.i(TAG, "zoomOnSubCatLabels() called!");
 
+        //which dim we want to fix for our rectangular zone of interest
+        //if we fix x dimensions (0), the Canvas will zoom such that the x min and max of our zone are aligned with the screen left and rt edges, and the y bounds are scaled appropriately to maintain the aspect ratio of the whole Canvas
+        //if we fix y dimensions (1), the Canvas will zoom such that the y min and max of our zone are aligned with the screen top and bottom edges, and the x bounds are scaled appropriately to maintain the aspect ratio of the whole Canvas
+        int fixXOrYDim = 1; //by default, fix y dims
+
         //get the aisles
         ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
 
         //how far do the labels of interest span on x and y axis?
-        float ySpan;
-        float xSpan;
+        float ySpan, xSpan, scaleFactor, leftPad, topPad, left, right, bottom, top;
 
         float xMin  = 5000;
         float xMax = -1;
         float yMin = 5000;
         float yMax = -1;
+
+        int maxTextLen = -1;
 
         Log.i(TAG, "There are " + dots.size() + " dots currently, and " + subCatLabels.size() + " items in drawnLabels");
 
@@ -330,37 +349,80 @@ public class StoreMap2D extends View {
                             yMin = Math.min(yMin, l.getPt().y);
                             xMax = Math.max(xMax, l.getPt().x);
                             yMax = Math.max(yMax, l.getPt().y);
+
+                            maxTextLen = Math.max(maxTextLen, l.getTxt().length());
                         }
                     }
                 }
             }
 
             ySpan = yMax - yMin;
-            xSpan = xMax - xMin;
+            xSpan = Math.min(Constants.catNameTextWidth, maxTextLen);
+
+
+            if (ySpan == 0) {
+                //zoom so x bounds fit the screen edges instead, and y bounds will adjust accordingly
+                fixXOrYDim = 0;
+                ySpan = Constants.catNameTextSize + 2;
+            }
 
             Log.i(TAG, "xMin is " + xMin + ", xMax is " + xMax + ", yMin is " + yMin + ", yMax is " + yMax);
 
             float xCentroid = (xMin + xMax) / 2;
             float yCentroid = ((yMin + yMax) / 2) + (Constants.mapCanvHeight - Constants.mapFrameRectHeight) / 2;
 
-
-
             Log.i(TAG, "zoomOnSubCatLabels(): centroid is (" + xCentroid + ", " + yCentroid + ")");
-
-            matrix.postScale(1f, 1f, Constants.mapCanvWidth / 2, Constants.mapCanvHeight / 2);
 
             float dx = Constants.mapCanvCtrX - xCentroid;
             float dy = Constants.mapCanvCtrY - yCentroid;
 
-            //translate to the point (xCentroid, yCentroid)
-            matrix.postTranslate(dx, dy);
             xCtr -= dx;
             yCtr -= dy;
 
-            //xCtrAbs = xCentroid;
-            //yCtrAbs = yCentroid;
+            if (fixXOrYDim == 1) {
+                //compute scale factor needed to fill screen with rectangular zone of interest
+                //to do so, find ratio between full canvas height and the height of our zone
+                scaleFactor = Constants.mapCanvHeight / ySpan;
 
-            matrix.postScale(20f, 20f, Constants.mapCanvWidth / 2 - dx, Constants.mapCanvHeight / 2 - dy);
+                //to find left padding dist, take some of the screen width (use canvas width but then scale down by scale factor we computed)
+                leftPad = (Constants.mapCanvWidth / 2 - Constants.mapCanvWidth / 10) / scaleFactor;
+
+                //compute left and right bounds
+                left = xMin - leftPad;
+                right = left + Constants.mapCanvAspectRatioWH * ySpan; //maintain entire canvas' aspect ratio so that mapping works: whatever y span needs to be, compute proportional x span
+
+                //bottom is just bottom yBound plus space for last subcat label text
+                bottom = yMax + Constants.catNameTextSize + 1;
+
+                top = yMin;
+
+                //make sure aspect ratio of src rect = aspect ratio of dst rect, else mapping will fail
+                //TODO: instead of making new rect each time, just instantiate one at beginning and chg values
+
+                //rect args: left, top, right, bottom
+                src = new RectF(left, top, right, bottom); //src is rect containing zone of interest
+            }
+            else {
+                scaleFactor = Constants.mapCanvWidth / xSpan;
+
+                topPad = (Constants.mapCanvHeight / 2 - Constants.mapCanvHeight / 10) / scaleFactor;
+
+                top = yMin - topPad;
+                bottom = top + ((1/Constants.mapCanvAspectRatioWH) * xSpan);
+
+                right = xMin + Math.min(Constants.catNameTextWidth, maxTextLen) + Constants.dotsPadding + Constants.dotsRad + 2;
+
+                left = xMin - 2;
+
+                src = new RectF(left, top, right, bottom);
+            }
+
+            dst = new RectF(0, 0, Constants.mapCanvWidth, Constants.mapCanvHeight); //dst is rect containing the whole canvas
+
+            zone = new RectF(xMin - 1, yMin, xMin + Math.min(Constants.catNameTextWidth, maxTextLen) + Constants.dotsPadding + Constants.dotsRad + 1, bottom = yMax + Constants.catNameTextSize + 1);
+
+            boolean ret = matrix.setRectToRect(src, dst, Matrix.ScaleToFit.CENTER); //center the rect on screen
+            Log.i(TAG, "setRectToRect result is " + ret);
         }
     }
 
@@ -405,12 +467,13 @@ public class StoreMap2D extends View {
                         //adjust by placing directly above or below. otherwise we can just lower the label by 1*text size
                         y += (l.getTxt().length() > Constants.catNameTextWidth) ? Constants.catNameTextSize * 2 : Constants.catNameTextSize;
                     }
-
                 }
 
                 Log.i(TAG, "subcatlabel x val is " + x + ", y val is " + y);
                 PointF pt = new PointF(x, y);
                 //Pair<PointF, String> newPair = new Pair<PointF, String>(pt, name);
+
+                Log.i(TAG, "Creating new subcatlabel with name " + name + " and yval " + pt.y);
                 SubcatLabel newLabel = new SubcatLabel(pt, name, id);
 
                 //add this subcat label to the drawn labels arraylist
@@ -479,7 +542,7 @@ public class StoreMap2D extends View {
         super.onDraw(canvas);
 
         //save canvas state before proceeding
-        //canvas.save();
+        canvas.save();
 
         //completely replace current canvas' transformation matrix with specified matrix. If the matrix param is null, then current matrix is reset to identity.
         canvas.setMatrix(matrix);
@@ -489,25 +552,10 @@ public class StoreMap2D extends View {
         //int width = getWidth();
         //Log.i(TAG, "Dims of the drawing Canvas are height " + ht + " and width " + width);
 
-
         /*
         canvas.translate(mPosX, mPosY);
         Log.i(TAG, "mScaleFactor is " + mScaleFactor);
         canvas.scale(mScaleFactor, mScaleFactor);*/
-
-        /*
-        textPaint.setTextSize(100);
-        // Draw the label text
-        canvas.drawText("TEST", 100, 100, textPaint);
-
-        textPaint.setStrokeWidth(10);
-
-        //draw the pointer
-        canvas.drawLine(200, 200, 400, 400, textPaint);
-        canvas.drawCircle(600, 600, 100, textPaint);
-        */
-
-        //d.draw(canvas);
 
         ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
 
@@ -547,12 +595,22 @@ public class StoreMap2D extends View {
 
         Log.i(TAG, "Drawing centroid at point (" + xCtr + ", " + yCtr + ")");
 
+        /*
         //FOR TESTING / DBUG
         //canvas.drawCircle(xCtr, yCtr, 6, dotPaint);
         //canvas.drawCircle(xCtrAbs, yCtrAbs, 6, subCatTextPaint);
+        //draw rect around camera viewport when zoom in on product area
+        if (src != null) {
+            canvas.drawRect(src, cameraRectPaint);
+        }*/
+
+        //draw rect around area where prod should be when zoom in on prod
+        if (zone != null) {
+            canvas.drawRect(zone, zoneOfInterestRectPaint);
+        }
 
         //return canvas to state it was in upon entering onDraw()
-        //canvas.restore();
+        canvas.restore();
     }
 
     @Override

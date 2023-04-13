@@ -10,6 +10,9 @@ public class Constants {
     //dist between left side of one aisle and left side of the next aisle
     public static final float aisleSpan = 39.0f;
 
+    //dist between left side of one aisle and rt side of the next aisle
+    public static final float aisleSpacing = aisleSpan - aisleWidth / 2;
+
     //width that subcat text can occupy on side of aisle
     public static final int catNameTextWidth = 20;
 
@@ -22,6 +25,7 @@ public class Constants {
 
     public static final float mapTopMargin = 400f;
 
+    //the whole map canvas covers the entire screen (besides the action bar)
     public static final float mapCanvHeight = 1999f;
     public static final float mapCanvWidth = 1080f;
 
@@ -32,4 +36,10 @@ public class Constants {
 
     public static final float mapCanvCtrX = mapCanvWidth / 2;
     public static final float mapCanvCtrY = mapCanvHeight / 2;
+
+    //width:height ratio of the whole map canvas
+    public static final float mapCanvAspectRatioWH = mapCanvWidth / mapCanvHeight;
+
+    //stroke width of rect that surrounds "show on map" zone
+    public static final float zoneRectStrokeWidth = 1;
 }
