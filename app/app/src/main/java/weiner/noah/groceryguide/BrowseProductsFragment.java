@@ -179,7 +179,7 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
 
     //search the product database by product name and update ListView to only show relevant
     public void queryDbWithSearch(String s) {
-        Log.i(TAG, "querying DB with string " + s);
+        //Log.i(TAG, "querying DB with string " + s);
 
         //make some QueryArgs
         QueryArgs args = new QueryArgs(s, s);

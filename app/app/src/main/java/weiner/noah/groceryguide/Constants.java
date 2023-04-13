@@ -27,4 +27,9 @@ public class Constants {
 
     public static final float mapFrameRectHeight = 900f;
     public static final float mapFrameRectWidth = 1080f;
+    public static final float mapFrameRectCtrX = mapFrameRectWidth / 2;
+    public static final float mapFrameRectCtrY = mapFrameRectHeight / 2;
+
+    public static final float mapCanvCtrX = mapCanvWidth / 2;
+    public static final float mapCanvCtrY = mapCanvHeight / 2;
 }

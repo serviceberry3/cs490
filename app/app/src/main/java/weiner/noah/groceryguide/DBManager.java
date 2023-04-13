@@ -59,7 +59,7 @@ public class DBManager {
             columns = cols;
         }
 
-        Log.i(TAG, "calling fetch() with SQL where statement " + query.getWhereSelectionStatement() + " and args " + query.getPreparedArgs());
+        //Log.i(TAG, "calling fetch() with SQL where statement " + query.getWhereSelectionStatement() + " and args " + query.getPreparedArgs());
 
         if (columns != null) {
             //get cursor using the db query, passing in our filtering statement and ordering specification

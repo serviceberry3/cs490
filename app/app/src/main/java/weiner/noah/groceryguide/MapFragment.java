@@ -27,10 +27,6 @@ public class MapFragment extends Fragment {
         getParentFragmentManager().setFragmentResultListener("drawDot", this, new FragmentResultListener() {
             @Override
             public void onFragmentResult(@NonNull String requestKey, @NonNull Bundle bundle) {
-                // We use a String here, but any type that can be put in a Bundle is supported
-//                int[] aisleArr = bundle.getIntArray("aisleArr");
-//                int[] sideArr = bundle.getIntArray("sideArr");
-//                float[] distFromFrontArr = bundle.getFloatArray("distFromFrontArr");
                 int[] idArr = bundle.getIntArray("idArr");
 
                 //add dot to list of dots for each subcat label for the subcat of interest
@@ -38,11 +34,8 @@ public class MapFragment extends Fragment {
                     binding.storeMap.addDot(idArr[i]);
                 }
 
-                //set scale and translate appropriately to zoom in on the area where the product lies
-                binding.storeMap.zoomOnSubcatLabels();
-
-                //add zone to list of zones
                 binding.storeMap.invalidate();
+                binding.storeMap.zoomOnSubcatLabels();
             }
         });
     }

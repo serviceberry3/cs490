@@ -41,6 +41,10 @@ public class StoreMap2D extends View {
 
     private float mScaleFactor = 1.f;
 
+    //point in canvas that's currently at the ctr of the screen
+    private float xCtr, yCtr;
+    private float xCtrAbs, yCtrAbs;
+
     Matrix drawMatrix = new Matrix();
     Path transformedPath = new Path();
 
@@ -72,7 +76,8 @@ public class StoreMap2D extends View {
     private DBManager dbManager;
 
     //labels that have been drawn, along with their x,y coordinates
-    private final ArrayList<SubcatLabel> drawnLabels = new ArrayList<SubcatLabel>();
+    private final ArrayList<SubcatLabel> subCatLabels = new ArrayList<SubcatLabel>();
+    private ArrayList<SubcatLabel> drawnLabelsSaved;
 
     //current transformation matrix for drawing Canvas that holds the map.
     //this is used on every single call of onDraw(), so on each redraw of the map Canvas
@@ -84,7 +89,6 @@ public class StoreMap2D extends View {
     //save some stuff for zooming
     PointF touchStartingPt = new PointF();
     PointF midPtBetweenFingers = new PointF();
-
 
     float initialDistBetweenFingers = 1f;
 
@@ -220,6 +224,12 @@ public class StoreMap2D extends View {
     }
 
     private void init() {
+        xCtr = Constants.mapFrameRectCtrX;
+        yCtr = Constants.mapFrameRectCtrY;
+
+        xCtrAbs = Constants.mapCanvCtrX;
+        yCtrAbs = Constants.mapCanvCtrY;
+
         textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         textPaint.setColor(textColor);
 
@@ -243,6 +253,11 @@ public class StoreMap2D extends View {
         matrix.postTranslate(0, (Constants.mapCanvHeight - Constants.mapFrameRectHeight) / 2);
 
         setScale(0.8f, 0.8f, Constants.mapCanvWidth / 2, Constants.mapCanvHeight / 2);
+
+        invalidate();
+
+        //load (from db) and lay out the subcategory name labels, i.e. find all of their drawing positions on the canvas
+        loadSubcatNames();
     }
 
     //draw a dot at a certain position on m ap
@@ -254,7 +269,7 @@ public class StoreMap2D extends View {
                 //now that we have the id number of the label that the dot should be drawn next to, we can simply look in the drawnLabels array, find label with that id,
                 //and draw dot next to that label
 
-                for (SubcatLabel l : drawnLabels) {
+                for (SubcatLabel l : subCatLabels) {
                     if (l.getId() == id) {
                         canvas.drawCircle(l.getPt().x + Math.min(l.getTxt().length(), Constants.catNameTextWidth) + Constants.dotsPadding, l.getPt().y + (Constants.catNameTextSize / 2f) + 0.5f, Constants.dotsRad, dotPaint);
                     }
@@ -279,11 +294,12 @@ public class StoreMap2D extends View {
                     }
                 }*/
             }
-
         }
     }
 
-    public void zoomOnSubcatLabels(Canvas canvas) {
+    public void zoomOnSubcatLabels() {
+        Log.i(TAG, "zoomOnSubCatLabels() called!");
+
         //get the aisles
         ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
 
@@ -296,51 +312,74 @@ public class StoreMap2D extends View {
         float yMin = 5000;
         float yMax = -1;
 
-        //draw all the Dot objects in the list
-        for (StoreMap2D.Dot d : dots) {
-            int id = d.getId();
+        Log.i(TAG, "There are " + dots.size() + " dots currently, and " + subCatLabels.size() + " items in drawnLabels");
 
-            if (id > 0) {
-                //now that we have the id number of the label that the dot should be drawn next to, we can simply look in the drawnLabels array, find label with that id,
-                //and draw dot next to that label
+        if (dots.size() > 0) {
+            //draw all the Dot objects in the list
+            for (StoreMap2D.Dot d : dots) {
+                int id = d.getId();
 
-                for (StoreMap2D.SubcatLabel l : drawnLabels) {
-                    if (l.getId() == id) {
-                        xMin = Math.min(xMin, l.getPt().x);
-                        yMin = Math.min(yMin, l.getPt().y);
-                        xMax = Math.max(xMax, l.getPt().x);
-                        yMax = Math.max(yMax, l.getPt().y);
+                if (id > 0) {
+                    //now that we have the id number of the label that the dot should be drawn next to, we can simply look in the drawnLabels array, find label with that id,
+                    //and draw dot next to that label
 
-                        //canvas.drawCircle(l.getPt().x + Math.min(l.getTxt().length(), Constants.catNameTextWidth) + Constants.dotsPadding, l.getPt().y + (Constants.catNameTextSize / 2f) + 0.5f, Constants.dotsRad, dotPaint);
+                    for (StoreMap2D.SubcatLabel l : subCatLabels) {
+                        if (l.getId() == id) {
+                            Log.i(TAG, "Dot ID matches drawn label ID, label x is " + l.getPt().x + ", label y is " + l.getPt().y);
+                            xMin = Math.min(xMin, l.getPt().x);
+                            yMin = Math.min(yMin, l.getPt().y);
+                            xMax = Math.max(xMax, l.getPt().x);
+                            yMax = Math.max(yMax, l.getPt().y);
+                        }
                     }
                 }
             }
+
+            ySpan = yMax - yMin;
+            xSpan = xMax - xMin;
+
+            Log.i(TAG, "xMin is " + xMin + ", xMax is " + xMax + ", yMin is " + yMin + ", yMax is " + yMax);
+
+            float xCentroid = (xMin + xMax) / 2;
+            float yCentroid = ((yMin + yMax) / 2) + (Constants.mapCanvHeight - Constants.mapFrameRectHeight) / 2;
+
+
+
+            Log.i(TAG, "zoomOnSubCatLabels(): centroid is (" + xCentroid + ", " + yCentroid + ")");
+
+            matrix.postScale(1f, 1f, Constants.mapCanvWidth / 2, Constants.mapCanvHeight / 2);
+
+            float dx = Constants.mapCanvCtrX - xCentroid;
+            float dy = Constants.mapCanvCtrY - yCentroid;
+
+            //translate to the point (xCentroid, yCentroid)
+            matrix.postTranslate(dx, dy);
+            xCtr -= dx;
+            yCtr -= dy;
+
+            //xCtrAbs = xCentroid;
+            //yCtrAbs = yCentroid;
+
+            matrix.postScale(20f, 20f, Constants.mapCanvWidth / 2 - dx, Constants.mapCanvHeight / 2 - dy);
         }
-
-        ySpan = yMax - yMin;
-        xSpan = xMax - xMin;
-
-        float xCentroid =
     }
 
     public void addDot(int aisle, int side, float distFromFront) {
-        Log.i(TAG, "adding dot at aisle " + aisle + ", side " + side + ", distFromFront " + distFromFront);
+        //Log.i(TAG, "adding dot at aisle " + aisle + ", side " + side + ", distFromFront " + distFromFront);
         dots.add(new Dot(aisle, side, distFromFront));
     }
 
     public void addDot(int id) {
-        Log.i(TAG, "adding dot for subcat lbl with id " + id);
+        //Log.i(TAG, "adding dot for subcat lbl with id " + id);
         dots.add(new Dot(id));
     }
 
-    private void drawNameInAisle(Canvas canvas, int id, String name, int aisle, int side, float dist) {
+    private void layOutSubcatNames(int id, String name, int aisle, int side, float dist) {
         String aisleName = "aisle_" + (side == 0 ? aisle + 1 : aisle) + "_" + (side == 0 ? aisle : aisle - 1);
         //Log.i(TAG, "drawNameInAisle: looking for name " + aisleName);
 
         subCatTextPaint.setTextSize(Constants.catNameTextSize);
         subCatTextPaint.setColor(textColor);
-
-        StaticLayout mTextLayout;
 
         ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
 
@@ -354,12 +393,13 @@ public class StoreMap2D extends View {
 
                 float len = thisRect.height();
 
+                //y val should be aisle bottom - distance up the aisle where the prod is located
                 float y = bottom - (len * dist);
 
                 //go through and see if any category name label have already used the same y position
-                for (SubcatLabel l : drawnLabels) {
+                for (SubcatLabel l : subCatLabels) {
                     if (l.getPt().y == y) {
-                        Log.i(TAG, "TRIGGERED for category " + name + ": position " + y + " already used same y pos for category " + l.getTxt() + "!");
+                        //Log.i(TAG, "TRIGGERED for category " + name + ": position " + y + " already used same y pos for category " + l.getTxt() + "!");
 
                         //check how long the name that's in the way is. if it's long enough that it will wrap, we need to lower this label by 2*text size
                         //adjust by placing directly above or below. otherwise we can just lower the label by 1*text size
@@ -368,28 +408,19 @@ public class StoreMap2D extends View {
 
                 }
 
-                mTextLayout = new StaticLayout(name, subCatTextPaint, Constants.catNameTextWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
-                Log.i(TAG, "Drawing cat " + name + " at y coord " + y);
-                //canvas.drawText(name, x, y, textPaint);
-
-                canvas.save();
-
-                canvas.translate(x, y);
-                mTextLayout.draw(canvas);
-                canvas.restore();
-
+                Log.i(TAG, "subcatlabel x val is " + x + ", y val is " + y);
                 PointF pt = new PointF(x, y);
                 //Pair<PointF, String> newPair = new Pair<PointF, String>(pt, name);
                 SubcatLabel newLabel = new SubcatLabel(pt, name, id);
 
                 //add this subcat label to the drawn labels arraylist
                 //note that the PointF of this label is the actual final loc where lbl was drawn
-                drawnLabels.add(newLabel);
+                subCatLabels.add(newLabel);
             }
         }
     }
 
-    private void drawSubcatNames(Canvas canvas) {
+    private void loadSubcatNames() {
         //need to examine the db, fetch coords for each
         //instantiate new DBManager object and open the db
         dbManager = new DBManager(getContext());
@@ -418,7 +449,7 @@ public class StoreMap2D extends View {
                         float distFromFront = cursor.getFloat(distFromFrontColIdx);
                         int id = cursor.getInt(idColIdx);
 
-                        drawNameInAisle(canvas, id, subCatName, aisle, side, distFromFront);
+                        layOutSubcatNames(id, subCatName, aisle, side, distFromFront);
                     }
                     else {
                         Log.e(TAG, "ERROR: column not found in table!!");
@@ -429,20 +460,35 @@ public class StoreMap2D extends View {
         }
     }
 
+    public void drawSubcatLabels(Canvas canvas) {
+        for (SubcatLabel l : subCatLabels) {
+            StaticLayout mTextLayout = new StaticLayout(l.getTxt(), subCatTextPaint, Constants.catNameTextWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
+            //Log.i(TAG, "Drawing cat " + name + " at y coord " + y);
+            //canvas.drawText(name, x, y, textPaint);
+
+            canvas.save();
+
+            canvas.translate(l.getPt().x, l.getPt().y);
+            mTextLayout.draw(canvas);
+            canvas.restore();
+        }
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
+        //save canvas state before proceeding
+        //canvas.save();
+
         //completely replace current canvas' transformation matrix with specified matrix. If the matrix param is null, then current matrix is reset to identity.
         canvas.setMatrix(matrix);
 
-        //dims of the view itself are 1999hx1080w
+        //dims of the Canvas itself are 1999hx1080w
         //int ht = getHeight();
         //int width = getWidth();
-        //Log.i(TAG, "Dims of the view are height " + ht + " and width " + width);
+        //Log.i(TAG, "Dims of the drawing Canvas are height " + ht + " and width " + width);
 
-        //save canvas state before proceeding
-        canvas.save();
 
         /*
         canvas.translate(mPosX, mPosY);
@@ -465,6 +511,7 @@ public class StoreMap2D extends View {
 
         ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
 
+        //draw each element of the store map
         for (int i = 0; i < elements.size(); i++) {
             if (Objects.equals(elements.get(i).getId(), "frame")) {
                 textPaint.setColor(Color.parseColor("#f6def7"));
@@ -488,17 +535,24 @@ public class StoreMap2D extends View {
             canvas.restore();
         }
 
+        //Log.i(TAG, "onDraw() called..clearing list of drawn subcat labels!!");
+
         //TODO: change this?
         //draw in all of the subcategory names at appropriate location
-        drawSubcatNames(canvas);
+        drawSubcatLabels(canvas);
+        drawnLabelsSaved = subCatLabels;
 
         //draw aisle dots
         drawDots(canvas);
 
-        drawnLabels.clear();
+        Log.i(TAG, "Drawing centroid at point (" + xCtr + ", " + yCtr + ")");
+
+        //FOR TESTING / DBUG
+        //canvas.drawCircle(xCtr, yCtr, 6, dotPaint);
+        //canvas.drawCircle(xCtrAbs, yCtrAbs, 6, subCatTextPaint);
 
         //return canvas to state it was in upon entering onDraw()
-        canvas.restore();
+        //canvas.restore();
     }
 
     @Override

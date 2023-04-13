@@ -35,7 +35,7 @@ public class MapUtils {
 
                 if (subCatIdColIdx >= 0) {
                     subCatId = cursor.getInt(subCatIdColIdx);
-                    Log.i(TAG, "found subcat ID for product number " + prodId + ": " + subCatId);
+                    //Log.i(TAG, "found subcat ID for product number " + prodId + ": " + subCatId);
                 }
                 else {
                     Log.i(TAG, "NO subCatId col idx found!");
@@ -63,6 +63,8 @@ public class MapUtils {
                 int distFromFrontColIdx = cursor.getColumnIndex("distFromFront");
                 int idColIdx = cursor.getColumnIndex("_id");
 
+                NavWrapper.navigateSafe(navController, navAction, null);
+
                 //count num rows in the cursor
                 int cnt = cursor.getCount();
                 int[] idArr = new int[cnt];
@@ -83,8 +85,6 @@ public class MapUtils {
 
                 //set result which will be picked up by MapFragment
                 parentFragmentManager.setFragmentResult("drawDot", result);
-
-                NavWrapper.navigateSafe(navController, navAction, null);
             }
             else {
                 Log.i(TAG, "Error: subcat for this prod was found, but NO location entry for that subcat");
