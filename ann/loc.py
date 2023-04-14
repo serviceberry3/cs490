@@ -39,7 +39,7 @@ class Product():
         self.__cursor = self.__conn.cursor()
 
         #execute the prepared statement with prepared substituter values
-        self.__cursor.execute('insert into subcat_loc values (?,?,?,?,?,?,?)', (self.subCatId, self.subCatName, self.vid_aisle, self.side, self.distFromFront, self.absX, self.absY))
+        self.__cursor.execute('insert into subcat_loc values (?,?,?,?,?,?,?,?)', (self.subCatId, self.subCatName, self.vid_aisle, self.side, self.distFromFront, self.absX, self.absY, None))
         self.__conn.commit()
         self.__cursor.close()
 
