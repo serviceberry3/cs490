@@ -45,6 +45,7 @@ public class MapFragment extends Fragment {
         //get the binding for fragment_first and its root view to display
         binding = FragmentMapBinding.inflate(inflater, container, false);
 
+        //should pretty much always return the root (outermost) view here
         return binding.getRoot();
     }
 

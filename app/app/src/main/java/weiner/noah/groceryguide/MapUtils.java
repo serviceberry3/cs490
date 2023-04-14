@@ -16,6 +16,10 @@ import com.google.android.material.snackbar.Snackbar;
 public class MapUtils {
     public static final String TAG = "MapUtils";
 
+    public static void startNav(NavController navController, Cursor cursor, DBManager dbManager, View rootView, FragmentManager parentFragmentManager, int navAction) {
+        NavWrapper.navigateSafe(navController, navAction, null);
+    }
+
     public static void showProdOnMap(NavController navController, Cursor cursor, DBManager dbManager, View selectedView, View rootView, FragmentManager parentFragmentManager, int prodId, int navAction) {
         int subCatId = 0;
         int aisle = 0, side = 0;

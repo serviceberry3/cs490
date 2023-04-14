@@ -54,15 +54,6 @@ public class MainActivity extends AppCompatActivity {
 
         //make one default shopping list
         shoppingLists.add(new ShoppingList());
-
-        /*
-        //onclick listener for the fab button
-        binding.fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "FAB pressed", Snackbar.LENGTH_LONG).setAction("Action", null).show();
-            }
-        });*/
     }
 
     @Override
