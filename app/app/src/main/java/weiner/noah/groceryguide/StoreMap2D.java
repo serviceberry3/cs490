@@ -492,11 +492,11 @@ public class StoreMap2D extends View {
                     }
                 }
 
-                Log.i(TAG, "subcatlabel x val is " + x + ", y val is " + y);
+                //Log.i(TAG, "subcatlabel x val is " + x + ", y val is " + y);
                 PointF pt = new PointF(x, y);
                 //Pair<PointF, String> newPair = new Pair<PointF, String>(pt, name);
 
-                Log.i(TAG, "Creating new subcatlabel with name " + name + " and yval " + pt.y);
+                //Log.i(TAG, "Creating new subcatlabel with name " + name + " and yval " + pt.y);
                 SubcatLabel newLabel = new SubcatLabel(pt, name, id);
 
                 //add this subcat label to the drawn labels arraylist

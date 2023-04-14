@@ -2,6 +2,7 @@ package weiner.noah.groceryguide;
 
 import android.content.Context;
 import android.database.Cursor;
+import android.graphics.Color;
 import android.os.Bundle;
 
 import androidx.fragment.app.Fragment;
@@ -20,6 +21,7 @@ import android.widget.AdapterView;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
 
 import weiner.noah.groceryguide.databinding.FragmentProductsBinding;
@@ -38,6 +40,9 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
 
     private NavController navController;
 
+    //button for viewing route on map
+    private FloatingActionButton fab;
+
     //SQL cursor
     private Cursor cursor;
 
@@ -54,15 +59,6 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
     public ShoppingListFragment() {
     }
 
-    public static ShoppingListFragment newInstance(int columnCount) {
-        ShoppingListFragment fragment = new ShoppingListFragment();
-        Bundle args = new Bundle();
-        args.putInt(ARG_COLUMN_COUNT, columnCount);
-        fragment.setArguments(args);
-
-        return fragment;
-    }
-
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -71,8 +67,14 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
 
         mainActivity = (MainActivity) getActivity();
 
+        //arguments can be passed to fragments
+        //getArguments() fetches the arguments supplied to setArguments(Bundle), if any
         if (getArguments() != null) {
             mColumnCount = getArguments().getInt(ARG_COLUMN_COUNT);
+            Log.i(TAG, "column count passed into ShoppingListFragment is " + mColumnCount);
+        }
+        else {
+            Log.i(TAG, "No args passed to ShoppingListFragment!");
         }
         navController = Navigation.findNavController(requireActivity(), R.id.nav_host_fragment_content_main);
 
@@ -83,24 +85,36 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        Log.i(TAG, "onCreateView() called!");
+        //Log.i(TAG, "onCreateView() called!");
         View view = inflater.inflate(R.layout.fragment_shopping_list, container, false);
         binding = FragmentShoppingListBinding.inflate(inflater, container, false);
 
-        //set the adapter for the RecyclerView that holds the products list
-        if (view instanceof RecyclerView) {
-            Context context = view.getContext();
-            RecyclerView recyclerView = (RecyclerView) view;
+        fab = binding.fab;
+        fab.setImageBitmap(Utils.textAsBitmap("GO", 40, Color.BLACK));
 
-            if (mColumnCount <= 1) {
-                recyclerView.setLayoutManager(new LinearLayoutManager(context));
-            } else {
-                recyclerView.setLayoutManager(new GridLayoutManager(context, mColumnCount));
+        //onclick listener for the fab button
+        binding.fab.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MapUtils.startNav(navController, cursor, dbManager, mainActivity.findViewById(android.R.id.content), getParentFragmentManager(), R.id.action_ShoppingListFragment_to_MapFragment);
+                //Snackbar.make(view, "FAB pressed", Snackbar.LENGTH_LONG).setAction("Action", null).show();
             }
+        });
 
-            recyclerView.setAdapter(new ShoppingListItemRecyclerViewAdapter(mainActivity.shoppingLists.get(0).getProdList(), this));
-        }
-        return view;
+        //set the adapter for the RecyclerView that holds the products list
+        Context context = view.getContext();
+        RecyclerView recyclerView = binding.shopList;
+
+        //RecyclerView's LayoutManager measures and positions item views w/in a RecyclerView and
+        //determines policy for when to recycle item views that are no longer visible
+        //here we set the layout manager to be a LinearLayoutManager since we want a list with a single col
+        recyclerView.setLayoutManager(new LinearLayoutManager(context));
+
+        //set adapter for the RecyclerView, using the shopping list at index 0 as the list data
+        recyclerView.setAdapter(new ShoppingListItemRecyclerViewAdapter(mainActivity.shoppingLists.get(0).getProdList(), this));
+
+        //should pretty much always return the root (outermost) view here
+        return binding.getRoot();
     }
 
     public void showMenu(View v) {
@@ -121,7 +135,6 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
 
         MapUtils.showProdOnMap(navController, cursor, dbManager, idText, mainActivity.findViewById(android.R.id.content), getParentFragmentManager(), prodId, R.id.action_ShoppingListFragment_to_MapFragment);
     }
-
 
     @Override
     public boolean onMenuItemClick(MenuItem item) {
