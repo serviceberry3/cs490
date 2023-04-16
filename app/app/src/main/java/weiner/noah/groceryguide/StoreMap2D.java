@@ -8,11 +8,11 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
-import android.text.Layout;
 import android.text.StaticLayout;
 import android.text.TextPaint;
 import android.util.AttributeSet;
@@ -45,8 +45,11 @@ public class StoreMap2D extends View {
     private float xCtr, yCtr;
     private float xCameraCtr, yCameraCtr;
 
+    private ArrayList<PointF> ptsToDraw = new ArrayList<>();
+
     Matrix drawMatrix = new Matrix();
     Path transformedPath = new Path();
+    Matrix transform = new Matrix();
 
     private final int INVALID_POINTER_ID = -1;
     private final int AXIS_X_MIN = 0;
@@ -94,13 +97,16 @@ public class StoreMap2D extends View {
     PointF touchStartingPt = new PointF();
     PointF midPtBetweenFingers = new PointF();
 
+    //the graph
+    Graph mGraph = new Graph();
+
     float initialDistBetweenFingers = 1f;
 
     //cell dimensions for the graph (for running shortest path)
     private float cellWidth, cellHeight;
-    private int cellRows = (int) (Constants.mapFrameRectHeight / Constants.cellHeight);
-    private int cellColumns = (int) (Constants.mapFrameRectWidth / Constants.cellWidth);
-    private Paint gridPaint;
+    private int numCellRows = (int) (Constants.mapFrameRectHeight / Constants.cellHeight);
+    private int numCellCols = (int) (Constants.mapFrameRectWidth / Constants.cellWidth);
+    private Paint gridPaint, cellPaint;
 
     //zoom and pan: possible states
     private enum zoomPanState {
@@ -328,16 +334,108 @@ public class StoreMap2D extends View {
         matrix.postTranslate(0, (Constants.mapCanvHeight - Constants.mapFrameRectHeight) / 2);
         matrix.postScale(0.8f, 0.8f, Constants.mapCanvCtrX, Constants.mapCanvCtrY);
 
-        //load (from db) and lay out the subcategory name labels, i.e. find all of their drawing positions on the canvas
-        loadSubcatNames();
-        adjustSubCatNames();
-
         gridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         gridPaint.setStyle(Paint.Style.FILL_AND_STROKE);
         gridPaint.setColor(Color.GRAY);
         gridPaint.setAlpha(Constants.gridTransparency);
         cellWidth = Constants.cellWidth;
         cellHeight = Constants.cellHeight;
+
+        cellPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        cellPaint.setColor(Color.RED);
+        cellPaint.setStyle(Paint.Style.FILL);
+
+        //load (from db) and lay out the subcategory name labels, i.e. find all of their drawing positions on the canvas
+        loadSubcatNames();
+        adjustSubCatNames();
+
+        //create the graph using the map cells
+        createGraph();
+    }
+
+    public void createGraph() {
+        /*PSEUDOCODE:
+
+         */
+        RectF thisRect, elementRect;
+        Path rotatedRectPath = new Path(), cellPath = new Path(), res = new Path();
+        float rot;
+        ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
+
+        int currId = 0;
+
+        //is this map cell completely clear of obstacles?
+        boolean clear;
+
+        //iterate for all rows
+        for (int top = 0; top < Constants.mapFrameRectHeight; top += Constants.cellHeight) {
+            //iterate for all cols
+            for (int left = 0; left < Constants.mapFrameRectWidth; left += Constants.cellWidth) {
+                clear = true;
+
+                //args: left, top, rt, bottom
+                //thisRect is the rect representing the map cell that we're currently examining
+                thisRect = new RectF(left, top, left + Constants.cellWidth, top + Constants.cellHeight);
+
+                //iterate thru the store elements
+                for (SSWhalley.StoreElement element : elements) {
+                    if (!Objects.equals(element.getId(), "frame")) {
+                        rot = element.getRot();
+                        elementRect = element.getRect();
+
+                        //if some rotation is applied, need to find new points
+                        if (rot != 0.00f) {
+                            //Log.i(TAG, "HAS ROT");
+                            float[] corners = {
+                                    elementRect.left, elementRect.top, //left, top
+                                    elementRect.right, elementRect.top, //right, top
+                                    elementRect.right, elementRect.bottom, //right, bottom
+                                    elementRect.left, elementRect.bottom //left, bottom
+                            };
+
+                            transform.setRotate(rot, elementRect.centerX(), elementRect.centerY());
+                            transform.mapPoints(corners);
+
+                            rotatedRectPath.reset();
+                            rotatedRectPath.moveTo(corners[0], corners[1]);
+                            rotatedRectPath.lineTo(corners[2], corners[3]);
+                            rotatedRectPath.lineTo(corners[4], corners[5]);
+                            rotatedRectPath.lineTo(corners[6], corners[7]);
+
+                            cellPath.reset();
+                            cellPath.addRect(thisRect, Path.Direction.CCW);
+
+                            res.reset();
+                            if (res.op(rotatedRectPath, cellPath, Path.Op.INTERSECT)) {
+                                //the two paths did NOT intersect
+                                if (!res.isEmpty()) {
+                                    clear = false;
+                                }
+                            }
+                        } else {
+                            //Log.i(TAG, "CHECKING INTERSECT NONROT");
+
+                            //otherwise not looking at a rotated rectangle. simply check if thisRect intersects with elementRect
+                            if (RectF.intersects(thisRect, elementRect)) {
+                                Log.i(TAG, "cell rect with bounds top " + thisRect.top + " and left " + thisRect.left + " intersects element rect with bounds top " + elementRect.top +
+                                        " and left " + elementRect.left);
+
+                                //Log.i(TAG, "non-rotated store element rect intersects this cell, SETTING CLEAR FALSE");
+                                clear = false;
+                            }
+                        }
+                    }
+                }
+
+                if (clear) {
+                    //Log.i(TAG, "ADDING NODE");
+                    //now we can add the cell as a node in the graph
+                    mGraph.addNode(new Node(currId, thisRect));
+                }
+
+                currId++;
+            }
+        }
     }
 
     //draw a dot at a certain position on map
@@ -711,6 +809,7 @@ public class StoreMap2D extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        float rot;
         super.onDraw(canvas);
 
         //save canvas state before proceeding
@@ -744,8 +843,9 @@ public class StoreMap2D extends View {
 
             //save canvas state before possible rotation
             canvas.save();
-            float rot = elements.get(i).getRot();
-            if (rot != 0f) {
+            rot = elements.get(i).getRot();
+
+            if (rot != 0.00f) {
                 canvas.rotate(rot, thisRect.centerX(), thisRect.centerY());
             }
 
@@ -784,19 +884,30 @@ public class StoreMap2D extends View {
         //draw the grid
         drawGrid(canvas);
 
+        for (PointF p : ptsToDraw) {
+            canvas.drawCircle(p.x, p.y, 3, subCatTextPaint);
+        }
+
+        Log.i(TAG, "node data len is " + mGraph.getData().size());
+        for (Node n : mGraph.getData()) {
+            canvas.drawRect(n.getCellBounds(), cellPaint);
+        }
+
         //return canvas to state it was in upon entering onDraw()
         canvas.restore();
+
+
     }
 
     public void drawGrid(Canvas canvas) {
         //draw horizontal lines
-        for (int i = 0; i < cellRows; i++)
+        for (int i = 0; i < numCellRows; i++)
         {
             canvas.drawLine(0, i * cellHeight, Constants.mapFrameRectWidth, i * cellHeight, gridPaint);
         }
 
         //draw vertical lines
-        for (int i = 0; i < cellColumns; i++)
+        for (int i = 0; i < numCellCols; i++)
         {
             canvas.drawLine(i * cellWidth, 0, i * cellWidth, Constants.mapFrameRectHeight, gridPaint);
         }
