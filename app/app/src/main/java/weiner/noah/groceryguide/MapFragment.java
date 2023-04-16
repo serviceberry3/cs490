@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import weiner.noah.groceryguide.databinding.FragmentMapBinding;
 
 public class MapFragment extends Fragment {
-    private String TAG = "MapFragment";
+    private final String TAG = "MapFragment";
 
     private FragmentMapBinding binding;
 
@@ -52,16 +52,6 @@ public class MapFragment extends Fragment {
 
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-
-        /*
-        //if the button is click, go to second fragment
-        binding.buttonFirst.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //NavHostFragment provides an area within your layout for self-contained navigation to occur.
-                NavHostFragment.findNavController(FirstFragment.this).navigate(R.id.action_FirstFragment_to_SecondFragment);
-            }
-        });*/
     }
 
     @Override

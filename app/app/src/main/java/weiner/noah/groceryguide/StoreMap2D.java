@@ -3,13 +3,13 @@ package weiner.noah.groceryguide;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.database.Cursor;
-import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PointF;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.text.Layout;
@@ -24,6 +24,7 @@ import androidx.core.content.res.ResourcesCompat;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Objects;
 
 public class StoreMap2D extends View {
@@ -95,6 +96,12 @@ public class StoreMap2D extends View {
 
     float initialDistBetweenFingers = 1f;
 
+    //cell dimensions for the graph (for running shortest path)
+    private float cellWidth, cellHeight;
+    private int cellRows = (int) (Constants.mapFrameRectHeight / Constants.cellHeight);
+    private int cellColumns = (int) (Constants.mapFrameRectWidth / Constants.cellWidth);
+    private Paint gridPaint;
+
     //zoom and pan: possible states
     private enum zoomPanState {
         STILL,
@@ -140,12 +147,29 @@ public class StoreMap2D extends View {
     private class SubcatLabel {
         PointF pt;
         String txt;
-        int id;
+        int id, aisle, side;
 
-        public SubcatLabel(PointF pt, String txt, int id) {
+        //whether to actually draw this lbl on the map
+        boolean show;
+
+        //ht that lbl occupies in pixels
+        float ht;
+
+        //StaticLayout used to draw text for this subcat label
+        StaticLayout textLayout;
+
+        RectF bounds;
+
+        public SubcatLabel(PointF pt, String txt, int id, float ht, RectF bounds, StaticLayout layout, int aisle, int side) {
             this.pt = pt;
             this.txt = txt;
             this.id = id;
+            this.ht = ht;
+            this.textLayout = layout;
+            this.show = true;
+            this.aisle = aisle;
+            this.side = side;
+            this.bounds = bounds;
         }
 
         public int getId() {
@@ -158,6 +182,40 @@ public class StoreMap2D extends View {
 
         public PointF getPt() {
             return pt;
+        }
+
+        public float getHt() {
+            return ht;
+        }
+
+        public StaticLayout getTextLayout() {
+            return textLayout;
+        }
+
+        public void setY(float newY) {
+            this.pt.y = newY;
+            this.bounds.top = newY;
+            this.bounds.bottom = this.bounds.top + this.ht;
+        }
+
+        public void setShow(boolean show) {
+            this.show = show;
+        }
+
+        public boolean getShow() {
+            return this.show;
+        }
+
+        public int getSide() {
+            return side;
+        }
+
+        public int getAisle() {
+            return aisle;
+        }
+
+        public RectF getBounds() {
+            return bounds;
         }
     }
 
@@ -226,28 +284,6 @@ public class StoreMap2D extends View {
         requestLayout();
     }
 
-    //translate the "camera," ie if dx = 5, dy = 5, the map itself should move left 5, up 5
-    public void cameraTranslate(float dx, float dy) {
-        matrix.postTranslate(-1 * dx, -1 * dy);
-        xCameraCtr += dx * 0.8;
-        yCameraCtr += dy * 0.8;
-    }
-
-    public void cameraScale(float sx, float sy) {
-        matrix.postScale(sx, sy, xCameraCtr, yCameraCtr);
-    }
-
-    //translate the map itself, ie if dx = 5, dy = 5, the map itself should move right 5, down 5
-    public void mapTranslate(float dx, float dy) {
-        matrix.postTranslate(dx, dy);
-        xCameraCtr -= dx / 100;
-        //yCameraCtr -= dy;
-    }
-
-    public void mapScale(float sx, float sy) {
-        matrix.postScale(sx, sy, xCameraCtr, yCameraCtr);
-    }
-
     private void init() {
         xCtr = Constants.mapFrameRectCtrX;
         yCtr = Constants.mapFrameRectCtrY;
@@ -271,29 +307,37 @@ public class StoreMap2D extends View {
          */
 
         //init the dot paint
-        dotPaint = new Paint();
+        dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         dotPaint.setColor(Color.RED);
 
-        subCatTextPaint = new TextPaint();
+        subCatTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        subCatTextPaint.setTextScaleX(Constants.subCatTextXScale); //this seems to stop letters from overlapping
+        subCatTextPaint.setTextSize(Constants.subCatNameTextSize);
+        subCatTextPaint.setColor(textColor);
 
-        cameraRectPaint = new Paint();
+        cameraRectPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         cameraRectPaint.setColor(Color.BLACK);
         cameraRectPaint.setStyle(Paint.Style.STROKE);
 
-        zoneOfInterestRectPaint = new Paint();
+        zoneOfInterestRectPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         zoneOfInterestRectPaint.setColor(Color.GREEN);
         zoneOfInterestRectPaint.setStyle(Paint.Style.STROKE);
         zoneOfInterestRectPaint.setStrokeWidth(Constants.zoneRectStrokeWidth);
 
         //initial translation / scale of the matrix so that map is centered in the window
-        //cameraTranslate(0, -(Constants.mapCanvHeight - Constants.mapFrameRectHeight) / 2);
-
-        //cameraScale(0.8f, 0.8f);
-
-        invalidate();
+        matrix.postTranslate(0, (Constants.mapCanvHeight - Constants.mapFrameRectHeight) / 2);
+        matrix.postScale(0.8f, 0.8f, Constants.mapCanvCtrX, Constants.mapCanvCtrY);
 
         //load (from db) and lay out the subcategory name labels, i.e. find all of their drawing positions on the canvas
         loadSubcatNames();
+        adjustSubCatNames();
+
+        gridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        gridPaint.setStyle(Paint.Style.FILL_AND_STROKE);
+        gridPaint.setColor(Color.GRAY);
+        gridPaint.setAlpha(Constants.gridTransparency);
+        cellWidth = Constants.cellWidth;
+        cellHeight = Constants.cellHeight;
     }
 
     //draw a dot at a certain position on map
@@ -307,7 +351,7 @@ public class StoreMap2D extends View {
 
                 for (SubcatLabel l : subCatLabels) {
                     if (l.getId() == id) {
-                        canvas.drawCircle(l.getPt().x + Math.min(l.getTxt().length(), Constants.catNameTextWidth) + Constants.dotsPadding, l.getPt().y + (Constants.catNameTextSize / 2f) + 0.5f, Constants.dotsRad, dotPaint);
+                        canvas.drawCircle(l.getPt().x + Math.min(l.getTxt().length(), Constants.subCatNameTextWidth) + Constants.dotsPadding, l.getPt().y + (Constants.subCatNameTextSize / 2f) + 0.5f, Constants.dotsRad, dotPaint);
                     }
                 }
 
@@ -345,7 +389,7 @@ public class StoreMap2D extends View {
         ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
 
         //how far do the labels of interest span on x and y axis?
-        float ySpan, xSpan, scaleFactor, leftPad, topPad, left, right, bottom, top;
+        float ySpan, xSpan, scaleFactor, xSpanScaledForAspectRatio, xSpanTotWithBox, leftPad, topPad, left, right, bottom, top;
 
         float xMin  = 5000;
         float xMax = -1;
@@ -380,13 +424,13 @@ public class StoreMap2D extends View {
             }
 
             ySpan = yMax - yMin;
-            xSpan = Math.min(Constants.catNameTextWidth, maxTextLen);
+            xSpan = Math.min(Constants.subCatNameTextWidth, maxTextLen);
 
 
             if (ySpan == 0) {
                 //zoom so x bounds fit the screen edges instead, and y bounds will adjust accordingly
                 fixXOrYDim = 0;
-                ySpan = Constants.catNameTextSize + 2;
+                ySpan = Constants.subCatNameTextSize + 2;
             }
 
             Log.i(TAG, "xMin is " + xMin + ", xMax is " + xMax + ", yMin is " + yMin + ", yMax is " + yMax);
@@ -402,20 +446,24 @@ public class StoreMap2D extends View {
             xCtr -= dx;
             yCtr -= dy;
 
-            if (fixXOrYDim == 1) {
-                //compute scale factor needed to fill screen with rectangular zone of interest
-                //to do so, find ratio between full canvas height and the height of our zone
-                scaleFactor = Constants.mapCanvHeight / ySpan;
+            xSpanTotWithBox = xSpan + Constants.dotsPadding + Constants.dotsRad + Constants.zoneRectXPad;
+            //compute scale factor needed to fill screen with rectangular zone of interest
+            //to do so, find ratio between full canvas height and the height of our zone
+            scaleFactor = Constants.mapCanvHeight / ySpan;
 
+            //how wide will the zoom rect be
+            xSpanScaledForAspectRatio = Constants.mapCanvAspectRatioWH * ySpan;
+
+            if (fixXOrYDim == 1) {
                 //to find left padding dist, take some of the screen width (use canvas width but then scale down by scale factor we computed)
-                leftPad = (Constants.mapCanvWidth / 2 - Constants.mapCanvWidth / 10) / scaleFactor;
+                leftPad = (xSpanScaledForAspectRatio - xSpanTotWithBox) / 2;
 
                 //compute left and right bounds
                 left = xMin - leftPad;
-                right = left + Constants.mapCanvAspectRatioWH * ySpan; //maintain entire canvas' aspect ratio so that mapping works: whatever y span needs to be, compute proportional x span
+                right = left + xSpanScaledForAspectRatio; //maintain entire canvas' aspect ratio so that mapping works: whatever y span needs to be, compute proportional x span
 
                 //bottom is just bottom yBound plus space for last subcat label text
-                bottom = yMax + Constants.catNameTextSize + 1;
+                bottom = yMax + Constants.subCatNameTextSize + Constants.zoomRectBottomPad + Constants.zoneRectStrokeWidth;
 
                 top = yMin;
 
@@ -433,7 +481,7 @@ public class StoreMap2D extends View {
                 top = yMin - topPad;
                 bottom = top + ((1/Constants.mapCanvAspectRatioWH) * xSpan);
 
-                right = xMin + Math.min(Constants.catNameTextWidth, maxTextLen) + Constants.dotsPadding + Constants.dotsRad + 2;
+                right = xMin + Math.min(Constants.subCatNameTextWidth, maxTextLen) + Constants.dotsPadding + Constants.dotsRad + 2;
 
                 left = xMin - 2;
 
@@ -442,7 +490,7 @@ public class StoreMap2D extends View {
 
             dst = new RectF(0, 0, Constants.mapCanvWidth, Constants.mapCanvHeight); //dst is rect containing the whole canvas
 
-            zone = new RectF(xMin - 1, yMin, xMin + Math.min(Constants.catNameTextWidth, maxTextLen) + Constants.dotsPadding + Constants.dotsRad + 1, bottom = yMax + Constants.catNameTextSize + 1);
+            zone = new RectF(xMin - Constants.zoneRectXPad, yMin, xMin + xSpanTotWithBox , bottom = yMax + Constants.subCatNameTextSize + Constants.zoneRectBottomPad);
 
             boolean ret = matrix.setRectToRect(src, dst, Matrix.ScaleToFit.CENTER); //center the rect on screen
             Log.i(TAG, "setRectToRect result is " + ret);
@@ -459,14 +507,115 @@ public class StoreMap2D extends View {
         dots.add(new Dot(id));
     }
 
+    public boolean checkOverlapWithOtherLabels(SubcatLabel thisLabel) {
+        String name;
+        float newTop, newHt, newBottom, oldTop, oldHt, oldBottom;
+
+        Log.i(TAG, "Now running adjusts for lbl with ID #" + thisLabel.getId() + ", which spans from " + thisLabel.getPt().y + " to " + (thisLabel.getPt().y + thisLabel.getHt()));
+        name = thisLabel.getTxt();
+        newTop = thisLabel.getPt().y;
+        newHt = thisLabel.getHt();
+        newBottom = newTop + newHt;
+
+        SubcatLabel l;
+
+        ListIterator<SubcatLabel> iter = subCatLabels.listIterator();
+
+        while (iter.hasNext()) {
+            l = iter.next();
+
+            oldTop = l.getPt().y;
+            oldHt = l.getHt();
+            oldBottom = oldTop + oldHt;
+
+            if (l.getId() != thisLabel.getId() && l.getAisle() == thisLabel.getAisle() && l.getSide() == thisLabel.getSide()) {
+                //check if this label will overlap with lbl we're trying to draw. can simply use android Rect.intersect() method
+
+                if (RectF.intersects(thisLabel.getBounds(), l.getBounds())) {
+                    //if the labels are the same and have the exact same position (annotator added multiple lbls for a subcat on the same frame), just remove duplicate lbl from the list
+                    if (Objects.equals(l.getTxt(), name) && newTop == oldTop) {
+                        Log.i(TAG, "Duplicate label found: new label " + name + " with ID " + thisLabel.getId() + " is duplicate of label with ID " + l.getId());
+                        thisLabel.setShow(false);
+                        //iter.remove();
+                        return false;
+                    }
+
+                    Log.i(TAG, "Overlap found for label " + name + " with ID #" + thisLabel.getId() + ": its position " + newBottom + " overlaps with label for category " + l.getTxt() + " with ID #" + l.getId() +
+                            " which spans from " + l.getPt().y + " to " + (l.getPt().y + l.getHt()) + " and has linecount " + l.getTextLayout().getLineCount() +
+                            ". Adding " + (oldBottom - newTop) + " to this lbl which will move it down to " + (newTop + (oldBottom - newTop)));
+
+                    //FOUR OVERLAP CASES
+                    if (oldTop <= newTop && newTop < oldBottom) {
+                        newTop += oldBottom - newTop;
+                    }
+                    else if ((newBottom > oldTop && newBottom <= oldBottom)) {
+                        newTop += newBottom - oldTop;
+                    }
+                    else if (newTop >= oldTop && newBottom <= oldBottom) {
+                        newTop += oldBottom - newTop;
+                    }
+                    else if (oldTop >= newTop  && oldBottom <= newBottom) {
+                        newTop += newBottom - oldTop;
+                    }
+
+                    //adjust this lbl's y starting position by adding the overlap distance
+
+                    thisLabel.setY(newTop);
+                    return true; //return true as long as there was some adjustment
+                }
+
+                //OLD IMPLEMENTATION
+                /*
+                if ((l.getPt().y <= y && y < l.getPt().y + l.getHt()) || ((y + thisLabel.getHt() > l.getPt().y && y + thisLabel.getHt() <= l.getPt().y + l.getHt()))) { //strictly less than since it's okay for next lbl to start right where prev lbl ends
+                    //if the labels are the same, just remove duplicate lbl from the list
+                    if (Objects.equals(l.getTxt(), name)) {
+                        Log.i(TAG, "Duplicated label found: label " + name + " with ID " + thisLabel.getId());
+                        thisLabel.setShow(false);
+                        return false;
+                    }
+
+                    Log.i(TAG, "Overlap found for label " + name + " with ID #" + thisLabel.getId() + ": its position " + y + " overlaps with label for category " + l.getTxt() + " with ID #" + l.getId() +
+                            " which spans from " + l.getPt().y + " to " + (l.getPt().y + l.getHt()) + " and has linecount " + l.getTextLayout().getLineCount() +
+                            ". Adding " + (l.getPt().y + l.getHt() - y) + " to this lbl which will move it down to " + (y + (l.getPt().y + l.getHt() - y)));
+
+                    //adjust this lbl's y starting position by adding the overlap distance
+                    y += l.getPt().y + l.getHt() - y;
+                    thisLabel.setY(y);
+                    return true; //return true as long as there was some adjustment
+                }*/
+            }
+        }
+
+        return false; //checked against all existing lbls in same aisle and side, and no issues
+    }
+
+    public void adjustSubCatNames() {
+        ListIterator<SubcatLabel> iter = subCatLabels.listIterator();
+        SubcatLabel thisLabel;
+
+        //for each subcat label, go through and see if any other label will overlap with it
+        while (iter.hasNext()) {
+            thisLabel = iter.next();
+
+            //adjust the position of the subcat label until it's not overlapping any other labels (hopefully pos isn't adjusted too much)
+            while(checkOverlapWithOtherLabels(thisLabel));
+
+            //if this label was marked for deletion due to being a duplicate, delete it from the subcat labels list
+            if (!thisLabel.getShow()) {
+                iter.remove();
+            }
+        }
+    }
+
     private void layOutSubcatNames(int id, String name, int aisle, int side, float dist) {
         String aisleName = "aisle_" + (side == 0 ? aisle + 1 : aisle) + "_" + (side == 0 ? aisle : aisle - 1);
         //Log.i(TAG, "drawNameInAisle: looking for name " + aisleName);
 
-        subCatTextPaint.setTextSize(Constants.catNameTextSize);
-        subCatTextPaint.setColor(textColor);
-
         ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
+
+        StaticLayout.Builder builder;
+        StaticLayout mTextLayout;
+        float lblHeight;
 
         for (SSWhalley.StoreElement element : elements) {
             //FIXME: is there a faster way to find the correct element?
@@ -481,23 +630,24 @@ public class StoreMap2D extends View {
                 //y val should be aisle bottom - distance up the aisle where the prod is located
                 float y = bottom - (len * dist);
 
-                //go through and see if any category name label have already used the same y position
-                for (SubcatLabel l : subCatLabels) {
-                    if (l.getPt().y == y) {
-                        //Log.i(TAG, "TRIGGERED for category " + name + ": position " + y + " already used same y pos for category " + l.getTxt() + "!");
+                String text = Constants.showId ? name + " (" + id + ")" : name;
+                //Log.i(TAG, "text is " + text);
 
-                        //check how long the name that's in the way is. if it's long enough that it will wrap, we need to lower this label by 2*text size
-                        //adjust by placing directly above or below. otherwise we can just lower the label by 1*text size
-                        y += (l.getTxt().length() > Constants.catNameTextWidth) ? Constants.catNameTextSize * 2 : Constants.catNameTextSize;
-                    }
-                }
+                //create the text layout for this subcat label
+                builder = StaticLayout.Builder.obtain(text, 0, text.length(), subCatTextPaint, (int)Constants.subCatNameTextWidth);
+                mTextLayout = builder.build();
+
+                //get ht in pixels of the StaticLayout we created for the subcat label text
+                lblHeight = mTextLayout.getHeight();
 
                 //Log.i(TAG, "subcatlabel x val is " + x + ", y val is " + y);
                 PointF pt = new PointF(x, y);
-                //Pair<PointF, String> newPair = new Pair<PointF, String>(pt, name);
+
+                //args: left, top, rt, bottom
+                RectF rect = new RectF(x, y, x + Constants.subCatNameTextWidth, y + lblHeight);
 
                 //Log.i(TAG, "Creating new subcatlabel with name " + name + " and yval " + pt.y);
-                SubcatLabel newLabel = new SubcatLabel(pt, name, id);
+                SubcatLabel newLabel = new SubcatLabel(pt, name, id, lblHeight, rect, mTextLayout, aisle, side);
 
                 //add this subcat label to the drawn labels arraylist
                 //note that the PointF of this label is the actual final loc where lbl was drawn
@@ -548,14 +698,13 @@ public class StoreMap2D extends View {
 
     public void drawSubcatLabels(Canvas canvas) {
         for (SubcatLabel l : subCatLabels) {
-            StaticLayout mTextLayout = new StaticLayout(l.getTxt(), subCatTextPaint, Constants.catNameTextWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
-            //Log.i(TAG, "Drawing cat " + name + " at y coord " + y);
-            //canvas.drawText(name, x, y, textPaint);
-
             canvas.save();
 
             canvas.translate(l.getPt().x, l.getPt().y);
-            mTextLayout.draw(canvas);
+
+            if (l.getShow()) {
+                l.getTextLayout().draw(canvas);
+            }
             canvas.restore();
         }
     }
@@ -567,7 +716,7 @@ public class StoreMap2D extends View {
         //save canvas state before proceeding
         canvas.save();
 
-        //completely replace current canvas' transformation matrix with specified matrix. If the matrix param is null, then current matrix is reset to identity.
+        //completely replace current canvas' transformation matrix with specified matrix. If the matrix param is null, then current matrix is reset to identity
         canvas.setMatrix(matrix);
 
         //dims of the Canvas itself are 1999hx1080w
@@ -632,8 +781,25 @@ public class StoreMap2D extends View {
             canvas.drawRect(zone, zoneOfInterestRectPaint);
         }
 
+        //draw the grid
+        drawGrid(canvas);
+
         //return canvas to state it was in upon entering onDraw()
         canvas.restore();
+    }
+
+    public void drawGrid(Canvas canvas) {
+        //draw horizontal lines
+        for (int i = 0; i < cellRows; i++)
+        {
+            canvas.drawLine(0, i * cellHeight, Constants.mapFrameRectWidth, i * cellHeight, gridPaint);
+        }
+
+        //draw vertical lines
+        for (int i = 0; i < cellColumns; i++)
+        {
+            canvas.drawLine(i * cellWidth, 0, i * cellWidth, Constants.mapFrameRectHeight, gridPaint);
+        }
     }
 
     @Override
@@ -710,7 +876,7 @@ public class StoreMap2D extends View {
                     matrix.set(savedMatrix);
 
                     //translate matrix appropriately to current finger position, relative to starting point
-                    mapTranslate(event.getX() - touchStartingPt.x, event.getY() - touchStartingPt.y);
+                    matrix.postTranslate(event.getX() - touchStartingPt.x, event.getY() - touchStartingPt.y);
                 }
 
                 //if we're in zoom state

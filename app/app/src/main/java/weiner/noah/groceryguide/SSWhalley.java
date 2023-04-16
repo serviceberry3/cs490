@@ -11,7 +11,7 @@ public class SSWhalley {
     private final ArrayList<StoreElement> lineList = new ArrayList<>();
     private final ArrayList<StoreElement> rectList = new ArrayList<>();
 
-    private final float aisleFrozen16Left = 87.0f;
+    private final float aisleFrozen16Left = 16f * Constants.cellWidth;
 
     public SSWhalley() {
         //the outer box for the store
@@ -29,15 +29,18 @@ public class SSWhalley {
         rectList.add(new StoreElement(new RectF(157.45f, 855.34f, 264.60f, 900.12f), 0.00f, "exit"));
         rectList.add(new StoreElement(new RectF(712.83f, -1.99f, 878.40f, 38.15f), 0.45f, "wall_fish"));
         rectList.add(new StoreElement(new RectF(720.08f, 683.49f, 819.20f, 711.69f), 0.00f, "chips"));
-        rectList.add(new StoreElement(new RectF(-0.76f, 41.94f, 21.51f, 697.81f), 0.00f, "wall_dairyeggcheese"));
+
+
         rectList.add(new StoreElement(new RectF(397.11f, 0.38f, 685.86f, 37.71f), 0.00f, "wall_meatpackaged"));
         rectList.add(new StoreElement(new RectF(27.81f, 2.27f, 386.41f, 36.44f), 0.00f, "wall_dairyyogmilk"));
         rectList.add(new StoreElement(new RectF(1053.13f, 230.92f, 1079.24f, 798.84f), 0.00f, "wall_produce"));
 
-        rectList.add(new StoreElement(new RectF(47.53f, 133.59f, 63.15f, 695.54f), 0.00f, "aisle_dairyeggcheese_frozen"));
 
-        rectList.add(new StoreElement(new RectF(aisleFrozen16Left, 137.93f, 102.80f, 696.99f), 0.00f, "aisle_frozen_16"));
-        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan, 134.00f, 141.96f, 700.27f), 0.00f, "aisle_16_15"));
+        //begin the "aisles"
+        rectList.add(new StoreElement(new RectF(0, 41.94f, Constants.aisleWidth, 697.81f), 0.00f, "wall_dairyeggcheese"));
+        rectList.add(new StoreElement(new RectF(Constants.aisleSpan, 133.59f, Constants.aisleSpan + Constants.aisleWidth, 695.54f), 0.00f, "aisle_dairyeggcheese_frozen"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left, 137.93f, Constants.aisleWidth + aisleFrozen16Left, 696.99f), 0.00f, "aisle_frozen_16"));
+        rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan, 134.00f, aisleFrozen16Left + Constants.aisleSpan + Constants.aisleWidth, 700.27f), 0.00f, "aisle_16_15"));
         rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 2, 130.72f, aisleFrozen16Left + Constants.aisleSpan * 2 + Constants.aisleWidth, 698.44f), 0.00f, "aisle_15_14"));
         rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 3, 132.18f, aisleFrozen16Left + Constants.aisleSpan * 3 + Constants.aisleWidth, 702.79f), 0.00f, "aisle_14_13"));
         rectList.add(new StoreElement(new RectF(aisleFrozen16Left + Constants.aisleSpan * 4, 130.72f, aisleFrozen16Left + Constants.aisleSpan * 4 + Constants.aisleWidth, 698.44f), 0.00f, "aisle_13_12"));
@@ -63,7 +66,8 @@ public class SSWhalley {
         rectList.add(new StoreElement(new RectF(834.23f, 830.46f, 941.47f, 862.42f), -89.64f, "snackbay"));
         rectList.add(new StoreElement(new RectF(858.12f, 193.42f, 940.58f, 222.00f), 50.75f, "cheese"));
         rectList.add(new StoreElement(new RectF(942.04f, 240.40f, 1022.29f, 268.69f), 0.00f, "pastries"));
-        rectList.add(new StoreElement(new RectF(-75.30f, 775.36f, 101.41f, 807.32f), -89.64f, "alcohol"));
+
+        rectList.add(new StoreElement(new RectF(0, 750f, Constants.aisleWidth, 850f), 0.00f, "alcohol"));
     }
 
     public ArrayList<StoreElement> getLineList() {
