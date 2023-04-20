@@ -96,7 +96,7 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
         binding.fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                MapUtils.startNav(navController, cursor, dbManager, mainActivity.findViewById(android.R.id.content), getParentFragmentManager(), R.id.action_ShoppingListFragment_to_MapFragment);
+                MapUtils.startNav(navController, getParentFragmentManager(), R.id.action_ShoppingListFragment_to_MapFragment);
                 //Snackbar.make(view, "FAB pressed", Snackbar.LENGTH_LONG).setAction("Action", null).show();
             }
         });

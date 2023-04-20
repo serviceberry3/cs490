@@ -7,10 +7,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
-import android.graphics.Path;
-import android.graphics.Point;
 import android.graphics.PointF;
-import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.text.StaticLayout;
@@ -23,17 +20,23 @@ import android.view.View;
 import androidx.core.content.res.ResourcesCompat;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Objects;
+import java.util.PriorityQueue;
 
 public class StoreMap2D extends View {
+    private MapFragment mapFragment;
+    private MainActivity mainActivity;
 
     public boolean mShowText;
     public int textPos;
 
+    //PAINTS
     public Paint textPaint, dotPaint, cameraRectPaint, zoneOfInterestRectPaint;
-    public TextPaint subCatTextPaint;
+    public TextPaint subCatTextPaint, tinyTextPaint;
 
     public float textWidth = 10;
     public float textHeight = 10;
@@ -46,10 +49,6 @@ public class StoreMap2D extends View {
     private float xCameraCtr, yCameraCtr;
 
     private ArrayList<PointF> ptsToDraw = new ArrayList<>();
-
-    Matrix drawMatrix = new Matrix();
-    Path transformedPath = new Path();
-    Matrix transform = new Matrix();
 
     private final int INVALID_POINTER_ID = -1;
     private final int AXIS_X_MIN = 0;
@@ -78,6 +77,8 @@ public class StoreMap2D extends View {
 
     private DBManager dbManager;
 
+    private Graph mGraph;
+
     //labels that have been drawn, along with their x,y coordinates
     private final ArrayList<SubcatLabel> subCatLabels = new ArrayList<SubcatLabel>();
     private ArrayList<SubcatLabel> drawnLabelsSaved;
@@ -97,9 +98,6 @@ public class StoreMap2D extends View {
     PointF touchStartingPt = new PointF();
     PointF midPtBetweenFingers = new PointF();
 
-    //the graph
-    Graph mGraph = new Graph();
-
     float initialDistBetweenFingers = 1f;
 
     //cell dimensions for the graph (for running shortest path)
@@ -107,6 +105,14 @@ public class StoreMap2D extends View {
     private int numCellRows = (int) (Constants.mapFrameRectHeight / Constants.cellHeight);
     private int numCellCols = (int) (Constants.mapFrameRectWidth / Constants.cellWidth);
     private Paint gridPaint, cellPaint;
+
+    ArrayList<Integer> nodesToHit = new ArrayList<Integer>();
+
+    //shortest paths between each pair of nodes in nodesToHit
+    ArrayList<ShortestPath> shortestPaths = new ArrayList<ShortestPath>();
+
+    //the backtracked shortest paths. We basically want to cache the backtracked paths so that we can draw them quickly on each frame
+    ArrayList<ArrayList<Integer>> backTrackedShortestPaths = new ArrayList<ArrayList<Integer>>();
 
     //zoom and pan: possible states
     private enum zoomPanState {
@@ -125,6 +131,8 @@ public class StoreMap2D extends View {
     public StoreMap2D(Context context, AttributeSet attrs) {
         super(context, attrs);
 
+        mainActivity = (MainActivity) getContext();
+
         TypedArray a = context.getTheme().obtainStyledAttributes(
                 attrs,
                 R.styleable.StoreMap2D,
@@ -139,7 +147,8 @@ public class StoreMap2D extends View {
             a.recycle();
         }
 
-        ssWhalley = new SSWhalley();
+        ssWhalley = mainActivity.getStoreModel();
+        mGraph = mainActivity.getGraph();
 
         d = ResourcesCompat.getDrawable(getResources(), R.drawable.svg_floor, null);
         assert d != null;
@@ -153,7 +162,8 @@ public class StoreMap2D extends View {
     private class SubcatLabel {
         PointF pt;
         String txt;
-        int id, aisle, side;
+        int id, subCatId, aisle,
+                side; //side: 0 is right/south, 1 is left/north
 
         //whether to actually draw this lbl on the map
         boolean show;
@@ -164,12 +174,14 @@ public class StoreMap2D extends View {
         //StaticLayout used to draw text for this subcat label
         StaticLayout textLayout;
 
+        //the bounds of the label (bounds of the StaticLayout) - left, top, right, bottom
         RectF bounds;
 
-        public SubcatLabel(PointF pt, String txt, int id, float ht, RectF bounds, StaticLayout layout, int aisle, int side) {
+        public SubcatLabel(PointF pt, String txt, int id, int subCatId, float ht, RectF bounds, StaticLayout layout, int aisle, int side) {
             this.pt = pt;
             this.txt = txt;
-            this.id = id;
+            this.id = id; //the regular id of the subcat label (autoincrement in the db)
+            this.subCatId = subCatId; //the id of the actual subcategory that this label represents
             this.ht = ht;
             this.textLayout = layout;
             this.show = true;
@@ -180,6 +192,10 @@ public class StoreMap2D extends View {
 
         public int getId() {
             return id;
+        }
+
+        public int getSubCatId() {
+            return subCatId;
         }
 
         public String getTxt() {
@@ -198,6 +214,7 @@ public class StoreMap2D extends View {
             return textLayout;
         }
 
+        //change the y position of this subcat label
         public void setY(float newY) {
             this.pt.y = newY;
             this.bounds.top = newY;
@@ -291,6 +308,8 @@ public class StoreMap2D extends View {
     }
 
     private void init() {
+        Log.i(TAG, "init() running!!");
+
         xCtr = Constants.mapFrameRectCtrX;
         yCtr = Constants.mapFrameRectCtrY;
 
@@ -321,6 +340,10 @@ public class StoreMap2D extends View {
         subCatTextPaint.setTextSize(Constants.subCatNameTextSize);
         subCatTextPaint.setColor(textColor);
 
+        tinyTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        tinyTextPaint.setTextSize(1);
+        tinyTextPaint.setColor(Color.BLACK);
+
         cameraRectPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         cameraRectPaint.setColor(Color.BLACK);
         cameraRectPaint.setStyle(Paint.Style.STROKE);
@@ -348,95 +371,8 @@ public class StoreMap2D extends View {
         //load (from db) and lay out the subcategory name labels, i.e. find all of their drawing positions on the canvas
         loadSubcatNames();
         adjustSubCatNames();
-
-        //create the graph using the map cells
-        createGraph();
     }
 
-    public void createGraph() {
-        /*PSEUDOCODE:
-
-         */
-        RectF thisRect, elementRect;
-        Path rotatedRectPath = new Path(), cellPath = new Path(), res = new Path();
-        float rot;
-        ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
-
-        int currId = 0;
-
-        //is this map cell completely clear of obstacles?
-        boolean clear;
-
-        //iterate for all rows
-        for (int top = 0; top < Constants.mapFrameRectHeight; top += Constants.cellHeight) {
-            //iterate for all cols
-            for (int left = 0; left < Constants.mapFrameRectWidth; left += Constants.cellWidth) {
-                clear = true;
-
-                //args: left, top, rt, bottom
-                //thisRect is the rect representing the map cell that we're currently examining
-                thisRect = new RectF(left, top, left + Constants.cellWidth, top + Constants.cellHeight);
-
-                //iterate thru the store elements
-                for (SSWhalley.StoreElement element : elements) {
-                    if (!Objects.equals(element.getId(), "frame")) {
-                        rot = element.getRot();
-                        elementRect = element.getRect();
-
-                        //if some rotation is applied, need to find new points
-                        if (rot != 0.00f) {
-                            //Log.i(TAG, "HAS ROT");
-                            float[] corners = {
-                                    elementRect.left, elementRect.top, //left, top
-                                    elementRect.right, elementRect.top, //right, top
-                                    elementRect.right, elementRect.bottom, //right, bottom
-                                    elementRect.left, elementRect.bottom //left, bottom
-                            };
-
-                            transform.setRotate(rot, elementRect.centerX(), elementRect.centerY());
-                            transform.mapPoints(corners);
-
-                            rotatedRectPath.reset();
-                            rotatedRectPath.moveTo(corners[0], corners[1]);
-                            rotatedRectPath.lineTo(corners[2], corners[3]);
-                            rotatedRectPath.lineTo(corners[4], corners[5]);
-                            rotatedRectPath.lineTo(corners[6], corners[7]);
-
-                            cellPath.reset();
-                            cellPath.addRect(thisRect, Path.Direction.CCW);
-
-                            res.reset();
-                            if (res.op(rotatedRectPath, cellPath, Path.Op.INTERSECT)) {
-                                //the two paths did NOT intersect
-                                if (!res.isEmpty()) {
-                                    clear = false;
-                                }
-                            }
-                        } else {
-                            //Log.i(TAG, "CHECKING INTERSECT NONROT");
-
-                            //otherwise not looking at a rotated rectangle. simply check if thisRect intersects with elementRect
-                            if (RectF.intersects(thisRect, elementRect)) {
-                                Log.i(TAG, "cell rect with bounds top " + thisRect.top + " and left " + thisRect.left + " intersects element rect with bounds top " + elementRect.top +
-                                        " and left " + elementRect.left);
-
-                                //Log.i(TAG, "non-rotated store element rect intersects this cell, SETTING CLEAR FALSE");
-                                clear = false;
-                            }
-                        }
-                    }
-                }
-
-                if (clear) {
-                    //Log.i(TAG, "ADDING NODE");
-                    //now we can add the cell as a node in the graph
-                    mGraph.addNode(new Node(currId, thisRect));
-                }
-
-                currId++;
-            }
-        }
-    }
 
     //draw a dot at a certain position on map
     public void drawDots(Canvas canvas) {
@@ -609,7 +545,7 @@ public class StoreMap2D extends View {
         String name;
         float newTop, newHt, newBottom, oldTop, oldHt, oldBottom;
 
-        Log.i(TAG, "Now running adjusts for lbl with ID #" + thisLabel.getId() + ", which spans from " + thisLabel.getPt().y + " to " + (thisLabel.getPt().y + thisLabel.getHt()));
+        //Log.i(TAG, "Now running adjusts for lbl with ID #" + thisLabel.getId() + ", which spans from " + thisLabel.getPt().y + " to " + (thisLabel.getPt().y + thisLabel.getHt()));
         name = thisLabel.getTxt();
         newTop = thisLabel.getPt().y;
         newHt = thisLabel.getHt();
@@ -632,15 +568,16 @@ public class StoreMap2D extends View {
                 if (RectF.intersects(thisLabel.getBounds(), l.getBounds())) {
                     //if the labels are the same and have the exact same position (annotator added multiple lbls for a subcat on the same frame), just remove duplicate lbl from the list
                     if (Objects.equals(l.getTxt(), name) && newTop == oldTop) {
-                        Log.i(TAG, "Duplicate label found: new label " + name + " with ID " + thisLabel.getId() + " is duplicate of label with ID " + l.getId());
+                        //Log.i(TAG, "Duplicate label found: new label " + name + " with ID " + thisLabel.getId() + " is duplicate of label with ID " + l.getId());
                         thisLabel.setShow(false);
                         //iter.remove();
                         return false;
                     }
 
-                    Log.i(TAG, "Overlap found for label " + name + " with ID #" + thisLabel.getId() + ": its position " + newBottom + " overlaps with label for category " + l.getTxt() + " with ID #" + l.getId() +
+                    //DBUG
+                    /*Log.i(TAG, "Overlap found for label " + name + " with ID #" + thisLabel.getId() + ": its position " + newBottom + " overlaps with label for category " + l.getTxt() + " with ID #" + l.getId() +
                             " which spans from " + l.getPt().y + " to " + (l.getPt().y + l.getHt()) + " and has linecount " + l.getTextLayout().getLineCount() +
-                            ". Adding " + (oldBottom - newTop) + " to this lbl which will move it down to " + (newTop + (oldBottom - newTop)));
+                            ". Adding " + (oldBottom - newTop) + " to this lbl which will move it down to " + (newTop + (oldBottom - newTop)));*/
 
                     //FOUR OVERLAP CASES
                     if (oldTop <= newTop && newTop < oldBottom) {
@@ -687,6 +624,10 @@ public class StoreMap2D extends View {
         return false; //checked against all existing lbls in same aisle and side, and no issues
     }
 
+    /**
+     * This function adjusts the subcategory labels so that none are overlapping, making the map easier to read. These subcategory labels are originally annotated by a human annotator.
+     * This function will modify the PointF objs of each label to change their coordinates appropriately.
+     */
     public void adjustSubCatNames() {
         ListIterator<SubcatLabel> iter = subCatLabels.listIterator();
         SubcatLabel thisLabel;
@@ -705,7 +646,7 @@ public class StoreMap2D extends View {
         }
     }
 
-    private void layOutSubcatNames(int id, String name, int aisle, int side, float dist) {
+    private void layOutSubcatNames(int id, int subCatId, String name, int aisle, int side, float dist) {
         String aisleName = "aisle_" + (side == 0 ? aisle + 1 : aisle) + "_" + (side == 0 ? aisle : aisle - 1);
         //Log.i(TAG, "drawNameInAisle: looking for name " + aisleName);
 
@@ -745,7 +686,7 @@ public class StoreMap2D extends View {
                 RectF rect = new RectF(x, y, x + Constants.subCatNameTextWidth, y + lblHeight);
 
                 //Log.i(TAG, "Creating new subcatlabel with name " + name + " and yval " + pt.y);
-                SubcatLabel newLabel = new SubcatLabel(pt, name, id, lblHeight, rect, mTextLayout, aisle, side);
+                SubcatLabel newLabel = new SubcatLabel(pt, name, id, subCatId, lblHeight, rect, mTextLayout, aisle, side);
 
                 //add this subcat label to the drawn labels arraylist
                 //note that the PointF of this label is the actual final loc where lbl was drawn
@@ -769,6 +710,7 @@ public class StoreMap2D extends View {
                 //iterate over all rows in the subcats location table
                 do {
                     //get the indices of the table cols
+                    int subCatIdColIdx = cursor.getColumnIndex("subCatId");
                     int nameColIdx = cursor.getColumnIndex("subCatName");
                     int aisleColIdx = cursor.getColumnIndex("aisle");
                     int sideColIdx = cursor.getColumnIndex("side");
@@ -776,14 +718,15 @@ public class StoreMap2D extends View {
                     int idColIdx = cursor.getColumnIndex("_id");
 
 
-                    if (nameColIdx >= 0 && aisleColIdx >= 0 && sideColIdx >=0 && distFromFrontColIdx >= 0 && idColIdx >= 0) {
+                    if (subCatIdColIdx >= 0 && nameColIdx >= 0 && aisleColIdx >= 0 && sideColIdx >=0 && distFromFrontColIdx >= 0 && idColIdx >= 0) {
+                        int subCatId = cursor.getInt(subCatIdColIdx);
                         String subCatName = cursor.getString(nameColIdx);
                         int aisle = cursor.getInt(aisleColIdx);
                         int side = cursor.getInt(sideColIdx);
                         float distFromFront = cursor.getFloat(distFromFrontColIdx);
                         int id = cursor.getInt(idColIdx);
 
-                        layOutSubcatNames(id, subCatName, aisle, side, distFromFront);
+                        layOutSubcatNames(id, subCatId, subCatName, aisle, side, distFromFront);
                     }
                     else {
                         Log.e(TAG, "ERROR: column not found in table!!");
@@ -864,8 +807,8 @@ public class StoreMap2D extends View {
         //draw aisle dots
         drawDots(canvas);
 
-        Log.i(TAG, "Drawing centroid (local) at point (" + xCtr + ", " + yCtr + ")");
-        Log.i(TAG, "Drawing centroid (camera) at point (" + xCameraCtr + ", " + yCameraCtr + ")");
+        //Log.i(TAG, "Drawing centroid (local) at point (" + xCtr + ", " + yCtr + ")");
+        //Log.i(TAG, "Drawing centroid (camera) at point (" + xCameraCtr + ", " + yCameraCtr + ")");
 
         /*
         //FOR TESTING / DBUG
@@ -881,22 +824,75 @@ public class StoreMap2D extends View {
             canvas.drawRect(zone, zoneOfInterestRectPaint);
         }
 
-        //draw the grid
-        drawGrid(canvas);
-
+        /*
         for (PointF p : ptsToDraw) {
             canvas.drawCircle(p.x, p.y, 3, subCatTextPaint);
         }
 
+
         Log.i(TAG, "node data len is " + mGraph.getData().size());
         for (Node n : mGraph.getData()) {
             canvas.drawRect(n.getCellBounds(), cellPaint);
+        }*/
+
+
+        /* DRAW ALL EDGES IN GRAPH FOR DEBUG
+        ArrayList<ArrayList<Integer>> adjacencyLists = mGraph.getAdjacencyLists();
+        int currId = 0;
+        ArrayList<Node> data = mGraph.getData();
+
+        for (ArrayList<Integer> list : adjacencyLists) {
+            for (Integer id : list) {
+                //draw the edge
+                canvas.drawLine(data.get(currId).getCellBounds().centerX(), data.get(currId).getCellBounds().centerY(),
+                        data.get(id).getCellBounds().centerX(), data.get(id).getCellBounds().centerY(), cellPaint);
+            }
+
+            currId++;
         }
+         */
+
+
+        for (Integer i : nodesToHit) {
+            colorNode(mGraph.getData().get(i), canvas);
+        }
+
+
+        for (ArrayList<Integer> backTrackedPath : backTrackedShortestPaths) {
+            colorShortestPath(backTrackedPath, canvas);
+        }
+
+        /*
+        ArrayList<Node> data = mGraph.getData();
+        for (int i = 0; i < data.size(); i++) {
+            if (data.get(i).getCellBounds() != null) {
+                canvas.drawText(String.valueOf(i), data.get(i).getCellBounds().left, data.get(i).getCellBounds().centerY(), subCatTextPaint);
+            }
+        }*/
+
+        //draw the grid
+        drawGrid(canvas);
 
         //return canvas to state it was in upon entering onDraw()
         canvas.restore();
+    }
 
+    //fill a node with red
+    public void colorNode(Node node, Canvas canvas) {
+        RectF cellBounds = node.getCellBounds();
+        if (cellBounds != null) {
+            canvas.drawRect(node.getCellBounds(), cellPaint);
+        }
+        else {
+            Log.i(TAG, "colorNode: this node's cellBounds RectF is null!! So it's an obstructed cell.");
+        }
+    }
 
+    public void colorShortestPath(ArrayList<Integer> backTrackedPath, Canvas canvas) {
+        for (Integer i : backTrackedPath) {
+                //color in the two nodes
+                colorNode(mGraph.getData().get(i), canvas);
+        }
     }
 
     public void drawGrid(Canvas canvas) {
@@ -1025,5 +1021,179 @@ public class StoreMap2D extends View {
         float y = event.getY(0) + event.getY(1);
 
         pt.set(x / 2, y / 2);
+    }
+
+
+
+    public void startNav(List<Product> shopList) {
+        nodesToHit.clear();
+
+        int subCatId;
+        int nodeId;
+        RectF cell; //left, top, rt, bottom
+
+        //come up with list of cells for each product in the shopping list
+        for (Product p : shopList) {
+            //get subcat id for the prod
+            subCatId = p.getSubCatId();
+
+            //find any subcat label with matching subcat ID
+            for (SubcatLabel l : subCatLabels) {
+                if (l.getSubCatId() == p.getSubCatId()) {
+                    cell = MapUtils.convertArbitraryRectToCell(l.getBounds(), l.getSide());
+                    Log.i(TAG, "Cell found: bounds left " + cell.left + ", top " + cell.top + ", rt " + cell.right + ", bottom " + cell.bottom);
+
+                    //get ID of corresponding node in graph
+                    nodeId = MapUtils.convertCellBoundsToNodeId(cell);
+                    nodesToHit.add(nodeId);
+                    break; //continue to next product in the shopping list
+                }
+            }
+        }
+
+        addStartAndEndNodes();
+        computePath();
+    }
+
+    public void addStartAndEndNodes() {
+        //add the start and end nodes
+        RectF start, end; //left, top, rt, bottom
+        int startNode, endNode;
+
+        SSWhalley.StoreElement entrance = ssWhalley.getElementByName("entrance");
+        SSWhalley.StoreElement exit = ssWhalley.getElementByName("exit");
+
+        start = new RectF(entrance.getRect().centerX(), entrance.getRect().top - Constants.cellHeight, entrance.getRect().centerX(), entrance.getRect().top);
+        start = MapUtils.convertArbitraryRectToCell(start, -1);
+        startNode = MapUtils.convertCellBoundsToNodeId(start);
+
+        end = new RectF(exit.getRect().centerX(), exit.getRect().top - Constants.cellHeight, exit.getRect().centerX(), exit.getRect().top);
+        end = MapUtils.convertArbitraryRectToCell(end, -1);
+        endNode = MapUtils.convertCellBoundsToNodeId(end);
+
+        //Log.i(TAG, "startnode ID is " + startNode + ", endNode ID is " + endNode);
+
+        nodesToHit.add(startNode);
+        nodesToHit.add(endNode);
+    }
+
+
+
+    //compute Manhattan distance (taxicab distance) between two nodes. Use this as heuristic fxn for A* algorithm
+    public float heuristicManhattanDist(Node a, Node b) {
+        float ax = a.getCellBounds().centerX();
+        float ay = a.getCellBounds().centerY();
+
+        float bx = b.getCellBounds().centerX();
+        float by = b.getCellBounds().centerY();
+
+        //compute manhattan dist on square grid
+        return Math.abs(ax - bx) + Math.abs(ay - by);
+    }
+
+
+    class HeuristicComparator implements Comparator<Integer> {
+        public HeuristicComparator() {
+        }
+        @Override
+        public int compare(Integer n1, Integer n2) {
+            ArrayList<Node> data = mGraph.getData();
+
+            return (int)(data.get(n1).getPriority() - data.get(n2).getPriority());
+
+            /*
+            if (data.get(n1).getPriority() < data.get(n2).getPriority())
+                return 1;
+            else if (data.get(n1).getPriority() > data.get(n2).getPriority())
+                return -1;
+
+            return 0;*/
+        }
+    }
+
+
+    public void computePath() {
+        //nodesToHit now contains ID nums of all nodes we need to visit
+
+        /*
+        PSEUDOCODE: first, find shortest path between each pair of nodes in nodesToHit
+         */
+
+        shortestPaths.clear();
+
+        PriorityQueue<Integer> frontier = new PriorityQueue<Integer>(new HeuristicComparator());
+        Integer currNode;
+        ArrayList<Integer> neighbors;
+        ShortestPath thisPath;
+        float prio, updatedCost;
+        ArrayList<Node> data = mGraph.getData();
+
+        //find all unique pairs of nodes
+        for (int i = 0; i < nodesToHit.size(); i++) {
+            for (int j = i + 1; j < nodesToHit.size(); j++) {
+                frontier.clear();
+
+                Integer srcNode = nodesToHit.get(i);
+                Integer dstNode = nodesToHit.get(j);
+
+                Log.i(TAG, "Computing shortest path between source node " + srcNode + " and dest node " + dstNode);
+                thisPath = new ShortestPath(srcNode, dstNode);
+                //create new shortest path
+                shortestPaths.add(thisPath);
+
+                //to get to source node, we didn't come from any node
+                thisPath.addCameFromEntry(srcNode, null);
+                thisPath.addDistSoFarEntry(srcNode, 0f);
+
+                //start with just the source node in the PriorityQueue
+                frontier.add(srcNode);
+
+                //while there's still at least one node in the queue
+                while (!frontier.isEmpty()) {
+                    //get node at head of queue
+                    currNode = frontier.remove();
+                    Log.i(TAG, "Removed node " + currNode + " from head of queue");
+
+                    //if we popped the destination node off the queue, we're done. the cameFrom entry for the dest node will already exist
+                    if (Objects.equals(currNode, dstNode)) {
+                        Log.i(TAG, "REACHED DEST NODE");
+                        break;
+                    }
+
+                    //get all of this node's neighbors
+                    neighbors = mGraph.getAdjacencyLists().get(currNode);
+
+                    //iterate through this node's neighbors
+                    for (Integer nextNodeCandidate : neighbors) {
+                        updatedCost = thisPath.getDistSoFar().get(currNode) + Constants.cellHeight;
+
+                        //if we haven't already visited this node, OR if we have visited this node but now have found some shorter path to it
+                        if (!thisPath.getCameFrom().containsKey(nextNodeCandidate) || updatedCost < thisPath.getDistSoFar().get(nextNodeCandidate)) {
+                            thisPath.updateDistSoFarEntry(nextNodeCandidate, updatedCost);
+
+                            //in order to favor nodes that are closer to the destination node, compute Manhattan dist between this node and the dst node and use that
+                            //as priority value in the queue
+                            prio = updatedCost + heuristicManhattanDist(data.get(dstNode), data.get(nextNodeCandidate));
+                            data.get(nextNodeCandidate).setPriority(prio);
+
+                            Log.i(TAG, "Adding node " + nextNodeCandidate + " to queue with priority: cost to get here is " + updatedCost + " and manhatt dist to dest is " + heuristicManhattanDist(data.get(dstNode), data.get(nextNodeCandidate))
+                                    + " which makes total " + prio);
+                            //add the node to the queue with its priority
+                            frontier.add(nextNodeCandidate);
+
+                            thisPath.addCameFromEntry(nextNodeCandidate, currNode);
+                        }
+                    }
+                }
+            }
+        }
+
+        storeBackTrackedShortestPaths();
+    }
+
+    public void storeBackTrackedShortestPaths() {
+        for (ShortestPath shortestPath : shortestPaths) {
+            backTrackedShortestPaths.add(shortestPath.reconstructPath());
+        }
     }
 }

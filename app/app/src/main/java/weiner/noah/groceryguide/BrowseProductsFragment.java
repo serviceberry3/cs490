@@ -53,8 +53,8 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
     private Cursor cursor;
 
     //the table columns that we want to map to the view, with the corresponding layout elements that their text should fill
-    final String[] from = new String[] { DatabaseHelper.PROD_ID, DatabaseHelper.NAME };
-    final int[] to = new int[] { R.id.prod_id, R.id.prod_name };
+    final String[] from = new String[] { DatabaseHelper.PROD_ID, DatabaseHelper.NAME, DatabaseHelper.SUBCAT_ID, DatabaseHelper.SUBCAT_NAME };
+    final int[] to = new int[] { R.id.prod_id, R.id.prod_name, R.id.subcat_id, R.id.subcat_name };
 
     private NavController navController;
 
@@ -169,8 +169,11 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
 
         TextView idText = (TextView) ((ViewGroup) selectedView).getChildAt(0);
         TextView nameText = (TextView) ((ViewGroup) selectedView).getChildAt(1);
+        TextView subCatIdText = (TextView) ((ViewGroup) selectedView).getChildAt(2);
+        TextView subCatNameText = (TextView) ((ViewGroup) selectedView).getChildAt(3);
 
-        Product prod = new Product(Integer.parseInt(idText.getText().toString()), nameText.getText().toString());
+        //instantiate a new product with ID and name
+        Product prod = new Product(Integer.parseInt(idText.getText().toString()), nameText.getText().toString(), Integer.parseInt(subCatIdText.getText().toString()), subCatNameText.getText().toString());
 
         //for now add the product to the default shopping list, which always sits at index 0
         assert mainActivity != null;

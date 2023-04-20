@@ -38,6 +38,10 @@ public class Constants {
 
     public static final float mapFrameRectHeight = 900f;
     public static final float mapFrameRectWidth = 1080f;
+
+    public static final float mapFrameRectNumCellsTall = mapFrameRectHeight / cellHeight;
+    public static final float mapFrameRectNumCellsWide = mapFrameRectWidth / cellWidth;
+    public static final float numCells = mapFrameRectNumCellsTall * mapFrameRectNumCellsWide;
     public static final float mapFrameRectCtrX = mapFrameRectWidth / 2;
     public static final float mapFrameRectCtrY = mapFrameRectHeight / 2;
 

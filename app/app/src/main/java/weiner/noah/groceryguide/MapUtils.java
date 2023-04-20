@@ -1,12 +1,10 @@
 package weiner.noah.groceryguide;
 
 import android.database.Cursor;
+import android.graphics.RectF;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.CursorAdapter;
-import android.widget.TextView;
 
 import androidx.fragment.app.FragmentManager;
 import androidx.navigation.NavController;
@@ -16,8 +14,16 @@ import com.google.android.material.snackbar.Snackbar;
 public class MapUtils {
     public static final String TAG = "MapUtils";
 
-    public static void startNav(NavController navController, Cursor cursor, DBManager dbManager, View rootView, FragmentManager parentFragmentManager, int navAction) {
+    public static void startNav(NavController navController, FragmentManager parentFragmentManager, int navAction) {
         NavWrapper.navigateSafe(navController, navAction, null);
+
+        //make Bundle to be sent to the MapFragment
+        Bundle result = new Bundle();
+
+        result.putInt("key", 1);
+
+        //set result which will be picked up by MapFragment
+        parentFragmentManager.setFragmentResult("startNav", result);
     }
 
     public static void showProdOnMap(NavController navController, Cursor cursor, DBManager dbManager, View selectedView, View rootView, FragmentManager parentFragmentManager, int prodId, int navAction) {
@@ -88,7 +94,7 @@ public class MapUtils {
                 result.putIntArray("idArr", idArr);
 
                 //set result which will be picked up by MapFragment
-                parentFragmentManager.setFragmentResult("drawDot", result);
+                parentFragmentManager.setFragmentResult("showItemOnMap", result);
             }
             else {
                 Log.i(TAG, "Error: subcat for this prod was found, but NO location entry for that subcat");
@@ -98,5 +104,37 @@ public class MapUtils {
         else {
             Log.i(TAG, "SQL cursor is null after querying subcat loc table with subcat ID " + subCatId + "!!");
         }
+    }
+
+    //convert from subcat label bounds to the bounds of an actual map grid cell
+    public static RectF convertArbitraryRectToCell(RectF subCatRect, int side) {
+        float left, top, rt, bottom;
+
+        //snap top to the grid line above
+        top = Constants.cellHeight * (Math.floorDiv((long)subCatRect.top, (long)Constants.cellHeight));
+
+        //if right (south) side
+        if (side == 0) {
+            left = subCatRect.left + (Constants.cellWidth * (Constants.aisleWidth / (2*Constants.cellWidth)));
+        }
+        else if (side == 1) {
+            left = subCatRect.right - (Constants.cellWidth * (Constants.aisleWidth / (2*Constants.cellWidth)));
+        }
+        else {
+            left = Constants.cellHeight * Math.floorDiv((long)subCatRect.left, (long)Constants.cellWidth);
+        }
+
+        bottom = top + Constants.cellHeight;
+        rt = left + Constants.cellWidth;
+
+        return new RectF(left, top, rt, bottom);
+    }
+
+    //convert from RectF to the ID of the cell node
+    public static int convertCellBoundsToNodeId(RectF bounds) {
+        int row = (int) (bounds.top / Constants.cellHeight);
+        int col = (int) (bounds.left / Constants.cellWidth);
+
+        return row * (int)Constants.mapFrameRectNumCellsWide + col;
     }
 }

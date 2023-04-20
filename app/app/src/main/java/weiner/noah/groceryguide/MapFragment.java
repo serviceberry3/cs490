@@ -11,6 +11,7 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentResultListener;
 
 import java.util.ArrayList;
+import java.util.Objects;
 
 import weiner.noah.groceryguide.databinding.FragmentMapBinding;
 
@@ -24,7 +25,7 @@ public class MapFragment extends Fragment {
         super.onCreate(savedInstanceState);
 
         //listen for results sent to this fragment
-        getParentFragmentManager().setFragmentResultListener("drawDot", this, new FragmentResultListener() {
+        getParentFragmentManager().setFragmentResultListener("showItemOnMap", this, new FragmentResultListener() {
             @Override
             public void onFragmentResult(@NonNull String requestKey, @NonNull Bundle bundle) {
                 int[] idArr = bundle.getIntArray("idArr");
@@ -36,6 +37,18 @@ public class MapFragment extends Fragment {
 
                 binding.storeMap.invalidate();
                 binding.storeMap.zoomOnSubcatLabels();
+            }
+        });
+
+
+        //listen for results sent to this fragment
+        getParentFragmentManager().setFragmentResultListener("startNav", this, new FragmentResultListener() {
+            @Override
+            public void onFragmentResult(@NonNull String requestKey, @NonNull Bundle bundle) {
+                int key = bundle.getInt("key");
+                if (key == 1) {
+                    binding.storeMap.startNav(((MainActivity) requireActivity()).shoppingLists.get(0).getProdList());
+                }
             }
         });
     }

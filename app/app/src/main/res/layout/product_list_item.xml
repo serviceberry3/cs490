@@ -12,7 +12,8 @@
         android:maxLines="1"
         android:padding="3dp"
         android:textSize="17sp"
-        android:textStyle="bold" />
+        android:textStyle="bold"
+        android:visibility="invisible" />
 
     <TextView
         android:id="@+id/prod_name"
@@ -24,5 +25,29 @@
         android:maxLines="2"
         android:padding="3dp"
         android:visibility="visible" />
+
+    <TextView
+        android:id="@+id/subcat_id"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/prod_name"
+        android:layout_marginStart="300dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:padding="3dp"
+        android:visibility="invisible" />
+
+    <TextView
+        android:id="@+id/subcat_name"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:padding="3dp"
+        android:visibility="visible"
+        android:textStyle="bold" />
+
+
 
 </RelativeLayout>
