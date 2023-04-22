@@ -7,6 +7,7 @@
 
     <string name="action_show_prod_on_map">Show on map</string>
     <string name="action_add_prod_to_shop_list">Add to shopping list</string>
+    <string name="action_remove_prod">Remove</string>
 
     <!-- Strings used for fragments for navigation -->
     <string name="map_fragment_label">Stop &amp; Shop Whalley Ave</string>
@@ -18,11 +19,7 @@
     <string name="hello_first_fragment">Hello first fragment</string>
     <string name="hello_second_fragment">Hello second fragment. Arg: %1$s</string>
 
-    <string name="enter_name">Country Name</string>
-    <string name="add_record">Add Record</string>
-    <string name="btn_update">Update</string>
-    <string name="btn_delete">Delete</string>
     <string name="empty_list_text">No products found</string>
-    <string name="enter_desc">Currency</string>
-    <string name="enter_title">Country</string>
+
+    <string name="next_path_button">Next</string>
 </resources>

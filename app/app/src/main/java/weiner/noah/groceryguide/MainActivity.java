@@ -7,6 +7,7 @@ import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import androidx.fragment.app.FragmentManager;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
 import androidx.navigation.fragment.NavHostFragment;
@@ -39,16 +40,26 @@ public class MainActivity extends AppCompatActivity {
     //list of shopping lists
     List<ShoppingList> shoppingLists = new ArrayList<ShoppingList>();
 
+    private FragmentManager fragmentManager;
+
     private String TAG = "MainActivity";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        fragmentManager = getSupportFragmentManager();
+        if (fragmentManager == null) {
+            Log.i(TAG, "fragmentManager is NULL!!");
+        }
+
         super.onCreate(savedInstanceState);
+
 
         //getSupportActionBar().setTitle();
         //getSupportActionBar().setSubtitle();
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
+
+
 
         //set view to root view
         setContentView(binding.getRoot());
@@ -123,6 +134,14 @@ public class MainActivity extends AppCompatActivity {
                 NavWrapper.navigateSafe(navController, R.id.action_BrowseProductsFragment_to_ShoppingListFragment, null);
                 break;
         }
+    }
+
+    public FragmentManager getFragmentMgrFromMainActivity() {
+        if (this.fragmentManager == null) {
+            Log.i(TAG, "getFragmentMgrFromMainActivity(): fragmentManager is NULL!!");
+            return null;
+        }
+        return this.fragmentManager;
     }
 
     @Override

@@ -3,8 +3,14 @@ package weiner.noah.groceryguide;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.util.Log;
+
+import java.util.ArrayList;
+import java.util.Collections;
 
 public class Utils {
+    public static final String TAG = "Utils";
+
     //method to convert your text to image
     public static Bitmap textAsBitmap(String text, float textSize, int textColor) {
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -30,5 +36,24 @@ public class Utils {
 
         //return the Bitmap
         return image;
+    }
+
+
+    //idea from: https://stackoverflow.com/questions/2920315/permutation-of-array
+    //this runs in O(arr.size()!) time. Anything above 12 for arr size will take long.
+    public static void permuteArray(ArrayList<Integer> arr, int idx, ArrayList<ArrayList<Integer>> out) {
+        ArrayList<Integer> arrCopy = new ArrayList<>(arr);
+
+        for (int i = idx; i < arrCopy.size(); i++) {
+            Collections.swap(arrCopy, i, idx);
+            permuteArray(arrCopy, idx + 1, out);
+            Collections.swap(arrCopy, idx, i);
+        }
+
+        if (idx == arrCopy.size() - 1) {
+            Log.i(TAG, "adding " + arrCopy.toString() + " to the out list");
+            //Log.i(TAG, arr.toString());
+            out.add(arrCopy);
+        }
     }
 }

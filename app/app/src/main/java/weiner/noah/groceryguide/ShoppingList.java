@@ -15,6 +15,16 @@ public class ShoppingList {
         products.add(prod);
     }
 
+    public void removeProduct(int id) {
+        //a faster way would probably to use a HashMap instead of List
+        for (int i = 0; i < products.size(); i++) {
+            if (products.get(i).getProdId() == id) {
+                products.remove(i);
+                break;
+            }
+        }
+    }
+
     public List<Product> getProdList() {
         return products;
     }

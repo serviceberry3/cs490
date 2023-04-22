@@ -49,6 +49,7 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
     //curr selected view for which popup menu was opened
     private View selectedView;
     private FragmentShoppingListBinding binding;
+    private ShoppingListItemRecyclerViewAdapter adapter;
 
     private final String TAG = "ShoppingListFragment";
 
@@ -110,8 +111,10 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
         //here we set the layout manager to be a LinearLayoutManager since we want a list with a single col
         recyclerView.setLayoutManager(new LinearLayoutManager(context));
 
+        adapter = new ShoppingListItemRecyclerViewAdapter(mainActivity.shoppingLists.get(0).getProdList(), this);
+
         //set adapter for the RecyclerView, using the shopping list at index 0 as the list data
-        recyclerView.setAdapter(new ShoppingListItemRecyclerViewAdapter(mainActivity.shoppingLists.get(0).getProdList(), this));
+        recyclerView.setAdapter(adapter);
 
         //should pretty much always return the root (outermost) view here
         return binding.getRoot();
@@ -136,11 +139,23 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
         MapUtils.showProdOnMap(navController, cursor, dbManager, idText, mainActivity.findViewById(android.R.id.content), getParentFragmentManager(), prodId, R.id.action_ShoppingListFragment_to_MapFragment);
     }
 
+    public void removeProduct() {
+        //get the ID of product we want to remove
+        TextView idText = (TextView) ((ViewGroup) selectedView).getChildAt(0);
+        int prodId = Integer.parseInt(idText.getText().toString());
+
+        mainActivity.shoppingLists.get(0).removeProduct(prodId);
+        adapter.notifyDataSetChanged();
+    }
+
     @Override
     public boolean onMenuItemClick(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.action_show_prod_on_map:
                 showProdOnMap();
+                return true;
+            case R.id.action_remove_prod:
+                removeProduct();
                 return true;
             default:
                 return false;

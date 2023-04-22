@@ -4,10 +4,13 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentResultListener;
 
 import java.util.ArrayList;
@@ -18,7 +21,11 @@ import weiner.noah.groceryguide.databinding.FragmentMapBinding;
 public class MapFragment extends Fragment {
     private final String TAG = "MapFragment";
 
+    private FragmentManager fragmentManager;
+
     private FragmentMapBinding binding;
+
+    private Button nextPathButton;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -48,6 +55,11 @@ public class MapFragment extends Fragment {
                 int key = bundle.getInt("key");
                 if (key == 1) {
                     binding.storeMap.startNav(((MainActivity) requireActivity()).shoppingLists.get(0).getProdList());
+                    binding.nextPathButton.setVisibility(View.VISIBLE);
+
+                    LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) binding.storeMap.getLayoutParams();
+                    params.height = 1800;
+                    binding.storeMap.setLayoutParams(params);
                 }
             }
         });
@@ -65,6 +77,10 @@ public class MapFragment extends Fragment {
 
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+    }
+
+    public FragmentMapBinding getBinding() {
+        return binding;
     }
 
     @Override

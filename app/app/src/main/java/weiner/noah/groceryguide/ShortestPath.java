@@ -70,4 +70,12 @@ public class ShortestPath {
     public HashMap<Integer, Float> getDistSoFar() {
         return cumulativeActualDist;
     }
+
+    public int getLen() {
+        return len;
+    }
+
+    public void setLen(int len) {
+        this.len = len;
+    }
 }

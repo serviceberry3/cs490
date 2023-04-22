@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MapFragment">
+    tools:context=".MapFragment"
+    android:orientation="vertical">
 
     <weiner.noah.groceryguide.StoreMap2D
         android:id="@+id/store_map"
@@ -13,4 +14,25 @@
         android:layout_height="match_parent"
         android:layout_width="match_parent"/>
 
-</LinearLayout>
+        <TextView
+            android:id="@+id/path_description"
+            android:layout_width="200dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:layout_toStartOf="@id/next_path_button"/>
+
+        <Button
+            android:id="@+id/next_path_button"
+            android:layout_width="80dp"
+            android:layout_height="60dp"
+            android:layout_marginStart="300dp"
+            android:layout_marginBottom="20dp"
+            android:layout_marginTop="10dp"
+            android:layout_below="@+id/store_map"
+            android:text="@string/next_path_button"
+            android:visibility="invisible"
+            android:backgroundTint="@color/green"/>
+
+
+</RelativeLayout>

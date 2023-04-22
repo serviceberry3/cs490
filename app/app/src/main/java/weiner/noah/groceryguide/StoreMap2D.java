@@ -16,9 +16,12 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.Button;
 
 import androidx.core.content.res.ResourcesCompat;
+import androidx.fragment.app.FragmentManager;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -58,6 +61,9 @@ public class StoreMap2D extends View {
 
     private float mLastGestureX;
     private float mLastGestureY;
+
+    //nodes representing entrance and exit of grocery store
+    private int startNode, endNode;
 
     private int mActivePointerId = INVALID_POINTER_ID;
 
@@ -100,6 +106,8 @@ public class StoreMap2D extends View {
 
     float initialDistBetweenFingers = 1f;
 
+    private FragmentManager fragmentManager;
+
     //cell dimensions for the graph (for running shortest path)
     private float cellWidth, cellHeight;
     private int numCellRows = (int) (Constants.mapFrameRectHeight / Constants.cellHeight);
@@ -113,6 +121,10 @@ public class StoreMap2D extends View {
 
     //the backtracked shortest paths. We basically want to cache the backtracked paths so that we can draw them quickly on each frame
     ArrayList<ArrayList<Integer>> backTrackedShortestPaths = new ArrayList<ArrayList<Integer>>();
+
+    //the final route for the user's shopping trip
+    ArrayList<Integer> finalNodeOrdering = new ArrayList<Integer>();
+    ArrayList<ArrayList<Integer>> finalRoute = new ArrayList<ArrayList<Integer>>();
 
     //zoom and pan: possible states
     private enum zoomPanState {
@@ -130,7 +142,6 @@ public class StoreMap2D extends View {
     //constructor
     public StoreMap2D(Context context, AttributeSet attrs) {
         super(context, attrs);
-
         mainActivity = (MainActivity) getContext();
 
         TypedArray a = context.getTheme().obtainStyledAttributes(
@@ -853,14 +864,18 @@ public class StoreMap2D extends View {
          */
 
 
+        /*
         for (Integer i : nodesToHit) {
             colorNode(mGraph.getData().get(i), canvas);
-        }
+        }*/
 
-
+        /*
         for (ArrayList<Integer> backTrackedPath : backTrackedShortestPaths) {
             colorShortestPath(backTrackedPath, canvas);
-        }
+        }*/
+
+
+        colorFinalRoute(canvas);
 
         /*
         ArrayList<Node> data = mGraph.getData();
@@ -890,8 +905,25 @@ public class StoreMap2D extends View {
 
     public void colorShortestPath(ArrayList<Integer> backTrackedPath, Canvas canvas) {
         for (Integer i : backTrackedPath) {
-                //color in the two nodes
-                colorNode(mGraph.getData().get(i), canvas);
+            //color in the nodes
+            colorNode(mGraph.getData().get(i), canvas);
+        }
+    }
+
+    public void colorFinalRoute(Canvas canvas) {
+        ArrayList<Integer> path;
+
+        for (int i = 0; i < finalNodeOrdering.size() - 1; i++) {
+            path = fetchBacktrackedPathBetweenNodes(finalNodeOrdering.get(i), finalNodeOrdering.get(i + 1));
+
+            if (path != null) {
+                finalRoute.add(path);
+
+                for (Integer node : path) {
+                    //color in the nodes
+                    colorNode(mGraph.getData().get(node), canvas);
+                }
+            }
         }
     }
 
@@ -1041,7 +1073,7 @@ public class StoreMap2D extends View {
             for (SubcatLabel l : subCatLabels) {
                 if (l.getSubCatId() == p.getSubCatId()) {
                     cell = MapUtils.convertArbitraryRectToCell(l.getBounds(), l.getSide());
-                    Log.i(TAG, "Cell found: bounds left " + cell.left + ", top " + cell.top + ", rt " + cell.right + ", bottom " + cell.bottom);
+                    //Log.i(TAG, "Cell found: bounds left " + cell.left + ", top " + cell.top + ", rt " + cell.right + ", bottom " + cell.bottom);
 
                     //get ID of corresponding node in graph
                     nodeId = MapUtils.convertCellBoundsToNodeId(cell);
@@ -1058,7 +1090,6 @@ public class StoreMap2D extends View {
     public void addStartAndEndNodes() {
         //add the start and end nodes
         RectF start, end; //left, top, rt, bottom
-        int startNode, endNode;
 
         SSWhalley.StoreElement entrance = ssWhalley.getElementByName("entrance");
         SSWhalley.StoreElement exit = ssWhalley.getElementByName("exit");
@@ -1152,11 +1183,13 @@ public class StoreMap2D extends View {
                 while (!frontier.isEmpty()) {
                     //get node at head of queue
                     currNode = frontier.remove();
-                    Log.i(TAG, "Removed node " + currNode + " from head of queue");
+                    //Log.i(TAG, "Removed node " + currNode + " from head of queue");
 
                     //if we popped the destination node off the queue, we're done. the cameFrom entry for the dest node will already exist
                     if (Objects.equals(currNode, dstNode)) {
-                        Log.i(TAG, "REACHED DEST NODE");
+                        //Log.i(TAG, "REACHED DEST NODE");
+                        thisPath.setLen(Objects.requireNonNull(thisPath.getDistSoFar().get(currNode)).intValue());
+                        Log.i(TAG, "Set path len to " + thisPath.getLen() + " for path from src " + srcNode + " to dst " + dstNode);
                         break;
                     }
 
@@ -1176,8 +1209,8 @@ public class StoreMap2D extends View {
                             prio = updatedCost + heuristicManhattanDist(data.get(dstNode), data.get(nextNodeCandidate));
                             data.get(nextNodeCandidate).setPriority(prio);
 
-                            Log.i(TAG, "Adding node " + nextNodeCandidate + " to queue with priority: cost to get here is " + updatedCost + " and manhatt dist to dest is " + heuristicManhattanDist(data.get(dstNode), data.get(nextNodeCandidate))
-                                    + " which makes total " + prio);
+                            /*Log.i(TAG, "Adding node " + nextNodeCandidate + " to queue with priority: cost to get here is " + updatedCost + " and manhatt dist to dest is " + heuristicManhattanDist(data.get(dstNode), data.get(nextNodeCandidate))
+                                    + " which makes total " + prio);*/
                             //add the node to the queue with its priority
                             frontier.add(nextNodeCandidate);
 
@@ -1189,11 +1222,95 @@ public class StoreMap2D extends View {
         }
 
         storeBackTrackedShortestPaths();
+        computeRouteOrder();
     }
 
     public void storeBackTrackedShortestPaths() {
         for (ShortestPath shortestPath : shortestPaths) {
             backTrackedShortestPaths.add(shortestPath.reconstructPath());
+        }
+    }
+
+    public float fetchShortestDistBetweenNodes(Integer n1, Integer n2) {
+        Log.i(TAG, "fetchShortestDistBetweenNodes(): looking for nodes " + n1 + " and " + n2);
+
+        for (ArrayList<Integer> list : backTrackedShortestPaths) {
+            if ((Objects.equals(list.get(0), n1) && Objects.equals(list.get(list.size() - 1), n2)) ||
+                    (Objects.equals(list.get(0), n2) && Objects.equals(list.get(list.size() - 1), n1))) {
+                return (list.size() - 1) * Constants.cellHeight; //first node shouldn't count in distance computation
+            }
+        }
+
+        //shortest path between these nodes was not computed
+        return -1f;
+    }
+
+    public ArrayList<Integer> fetchBacktrackedPathBetweenNodes(Integer n1, Integer n2) {
+        Log.i(TAG, "fetchBacktrackedPathBetweenNodes called for nodes " + n1 + ", " + n2);
+
+        for (ArrayList<Integer> list : backTrackedShortestPaths) {
+            if ((Objects.equals(list.get(0), n1) && Objects.equals(list.get(list.size() - 1), n2)) ||
+                    (Objects.equals(list.get(0), n2) && Objects.equals(list.get(list.size() - 1), n1))) {
+                return list;
+            }
+        }
+
+        Log.i(TAG, "fetchBacktrackedPathBetweenNodes returning null!");
+        //shortest path between these nodes was not computed
+        return null;
+    }
+
+    public void computeRouteOrder() {
+        float shortestRouteDist = Float.POSITIVE_INFINITY;
+
+        ArrayList<Integer> shortestRoute;
+        float thisRouteDist;
+        float dist;
+
+        //up to 12 nodes, can just compute permutations of the shortest paths
+        if (mainActivity.shoppingLists.get(0).getProdList().size() <= 12) {
+            ArrayList<ArrayList<Integer>> out = new ArrayList<ArrayList<Integer>>();
+
+            //remove start and end nodes
+            nodesToHit.remove(nodesToHit.size() - 1);
+            nodesToHit.remove(nodesToHit.size() - 1);
+
+            //compute possible permutations of the items that need to be found in store
+            Utils.permuteArray(nodesToHit, 0, out);
+
+            //out now contains all permutations
+            //iterate thru permutations
+            for (ArrayList<Integer> list : out) {
+                thisRouteDist = 0;
+
+                //add back the start and end nodes
+                list.add(0, startNode);
+                list.add(endNode);
+
+                Log.i(TAG, "computeRouteOrder(): this permutation to compute tot dist of is " + list);
+
+                //compute total dist for this candidate route
+                for (int i = 0; i < list.size() - 1; i++) {
+                    dist = fetchShortestDistBetweenNodes(list.get(i), list.get(i + 1));
+                    Log.i(TAG, "computeRouteOrder(): got route dist of " + dist + " from src " + list.get(i) + " to dst " + list.get(i + 1));
+
+                    if (dist >= 0f) {
+                        thisRouteDist += dist;
+                    }
+                    else {
+                        //shortest path between these nodes has not been computed for some reason
+                        return;
+                    }
+                }
+
+                if (thisRouteDist < shortestRouteDist) {
+                    shortestRouteDist = thisRouteDist;
+                    finalNodeOrdering = list;
+                }
+            }
+
+            //Log.i(TAG, out.toString());
+            Log.i(TAG, "finalNodeOrdering is " + finalNodeOrdering);
         }
     }
 }
