@@ -73,7 +73,7 @@ public class LocationService extends Service implements SensorEventListener {
                 //initialize the sliding window of acceleration
                 initAccSlidingWindow();
 
-                //get the initial client position
+                //get the initial client position via the intent
                 UserPosition pos = (UserPosition) Objects.requireNonNull(intent).getSerializableExtra("init_pos");
 
                 double step, accTempMax = 9.8, accTempMin = 9.8;
@@ -138,7 +138,7 @@ public class LocationService extends Service implements SensorEventListener {
                             //update the user's position
                             pos = new UserPosition(posLat, posLon, NowClientPos.getNowFloor());
 
-                            //broadcast new user position
+                            //broadcast new user position via an Intent obj
                             Intent posIntent = new Intent("locate");
                             posIntent.putExtra("pos_data", pos);
                             sendBroadcast(posIntent);

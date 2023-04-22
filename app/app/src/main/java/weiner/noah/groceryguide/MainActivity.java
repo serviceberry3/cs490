@@ -1,5 +1,8 @@
 package weiner.noah.groceryguide;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
 import android.graphics.Matrix;
 import android.graphics.Path;
 import android.graphics.RectF;
@@ -42,6 +45,9 @@ public class MainActivity extends AppCompatActivity {
 
     private FragmentManager fragmentManager;
 
+    private Intent inertialLocIntent;
+
+
     private String TAG = "MainActivity";
 
     @Override
@@ -52,6 +58,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         super.onCreate(savedInstanceState);
+
+        inertialLocIntent = new Intent(MainActivity.this, LocationService.class);
 
 
         //getSupportActionBar().setTitle();
@@ -361,6 +369,60 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 currId++;
+            }
+        }
+    }
+
+    private void startIndoorLoc() {
+        UserPosition userPos = new UserPosition(NowClientPos.getNowLatitude(), NowClientPos.getNowLongitude());
+        inertialLocIntent.putExtra("init_pos", userPos);
+
+        startService(inertialLocIntent);
+    }
+
+    /**
+     * Close indoor positioning module
+     */
+    private void stopIndoorLoc() {
+        isCanReadNfc = false;    // Close NFC module
+        stopService(inertialLocIntent);  // Close indoor positioning module
+    }
+
+
+
+    /**
+     * The broadcast receiver. This receive receives broadcasts of user's location.
+     */
+    class DataReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, final Intent intent) {
+            String action = intent.getAction();
+            switch (Objects.requireNonNull(action)) {
+                case "locate":
+                    //get the broadcasted user position
+                    UserPosition userPosition = (UserPosition) intent.getSerializableExtra("pos_data");
+                    NowClientPos.setPosPara(userPosition);
+
+                    GeoPoint geoPoint = new GeoPoint(userPosition.getLatitude(), userPosition.getLongitude());
+                    mDLOverlay.setLocation(geoPoint);
+
+                    if (isFirstLocate) {
+                        mController.animateTo(geoPoint);
+                        isFirstLocate = false;
+                        mMapView.getOverlays().add(mDLOverlay);
+                    }
+                    updateLocOverlay();
+
+                    if (isInitIndoor) {   // 如果是初始就在室内，则通过wifi定位的结果请求地图
+                        isInitIndoor = false;
+                        Intent getIndoorMapIntent = getIndoorMapIntent(NowClientPos.getNowFloor(),
+                                NowClientPos.getNowLongitude(), NowClientPos.getNowLatitude());
+                        startService(getIndoorMapIntent);
+                        // Open inertial positioning module
+                        inertialLocIntent.putExtra("init_pos", userPosition);
+                        startService(inertialLocIntent);
+                    }
+                    break;
             }
         }
     }
