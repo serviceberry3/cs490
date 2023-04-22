@@ -10,21 +10,34 @@ import android.hardware.SensorManager;
 import android.os.IBinder;
 import android.util.Log;
 
-import java.security.Provider;
 import java.util.Objects;
 
+//This code is based on code found in https://github.com/ChenHongruixuan/In-outdoorSeamlessPositioningNavigationSystem
+
+//A Service is an application component that can perform long-running operations in the background
 public class LocationService extends Service implements SensorEventListener {
     private boolean isStopInertialLoc = false; // flag for whether the thread of inertial positioning is stopped
-    private float[] accNowValue = new float[3];    // storing acceleration values returned by sensor
-    private float[] oriNowValue = new float[3];    // storing orientation values returned by sensor
-    private double[] accSlidingWindow = new double[31];    // sliding window of acceleration
+    private float[] accCurrVal = new float[3];    // storing acceleration values returned by sensor
+    private float[] orientCurrVal = new float[3];    // storing orientation values returned by sensor
 
-    private static String TAG = "InertialLocateService";
+    //buffer of acceleration magnitude vals
+    private double[] accSlidingWindow = new double[SLIDING_WINDOW_LEN];
 
-    private static final double PI_CONST = Math.PI / 180;    // radian corresponding to 1 degree
-    private static final double kConst = 0.026795089522;    // the value of k in self defined nonlinear step size algorithm
+    private static String TAG = "LocationService";
+
+    //how many radians = 1 deg?
+    private static final double RADIANS_PER_DEGREE = Math.PI / 180;
+
+    //the value of k in self defined nonlinear step size algorithm
+    private static final double kConst = 0.026795089522;
+
     private static final double M_L_L_CONST = 111194.926644558;
-    private Thread inertialThread;
+
+    private static final int SLIDING_WINDOW_LEN = 31;
+
+    //background Thread on which the service runs
+    private Thread locServiceThread;
+
     private SensorManager sensorManager;
     private int count = 0, stepCount = 0;
     private long startTime, endTime;
@@ -32,80 +45,105 @@ public class LocationService extends Service implements SensorEventListener {
     @Override
     public void onCreate() {
         super.onCreate();
+
+        //get sensor manager
         sensorManager = (SensorManager) getApplicationContext().getSystemService(Context.SENSOR_SERVICE);
 
-        Sensor sensorAcc = Objects.requireNonNull(sensorManager).getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        Sensor sensorOri = sensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION);
-        sensorManager.registerListener(this, sensorAcc, SensorManager.SENSOR_DELAY_FASTEST);
-        sensorManager.registerListener(this, sensorOri, SensorManager.SENSOR_DELAY_GAME);
+        //get the sensors themselves and register the listeners to listen for incoming sensor readings
+        Sensor accelerometer = Objects.requireNonNull(sensorManager).getDefaultSensor(Sensor.TYPE_ACCELEROMETER); //accelerometer vals are: [0] x accel, [1] y accel, [2] z accel
+        Sensor orientationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION); //orientation vals are: [0] azimuth (deg of rotation around -z axis)
+
+        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_FASTEST);
+        sensorManager.registerListener(this, orientationSensor, SensorManager.SENSOR_DELAY_GAME);
     }
 
+
+    /**
+     * The system invokes this method by calling startService() when another component (ie Activity) requests that service be started. When this method executes,
+     * service is started and can run in background indefinitely. If you implement this, it's your responsibility to stop service when its work is complete
+     * by calling stopSelf() or stopService(). If you only want to provide binding, you don't need to implement this method.
+     *
+     */
     @Override
     public int onStartCommand(final Intent intent, int flags, int startId) {
-        inertialThread = new Thread(new Runnable() {
+        //create new thread
+        locServiceThread = new Thread(new Runnable() {
             @Override
             public void run() {
-                // initialize the sliding window of acceleration
+                //initialize the sliding window of acceleration
                 initAccSlidingWindow();
 
-                // initialize parameters
-                ClientPos ClientPos = (ClientPos) Objects.requireNonNull(intent).getSerializableExtra("init_pos");
+                //get the initial client position
+                UserPosition pos = (UserPosition) Objects.requireNonNull(intent).getSerializableExtra("init_pos");
+
                 double step, accTempMax = 9.8, accTempMin = 9.8;
-                double posLat = ClientPos.getLatitude(), posLon = ClientPos.getLongitude();
+
+                //get initial lat and lon
+                double posLat = pos.getLat(), posLon = pos.getLon();
+
                 boolean isStartCheckMinValue = false, isStartCheckMaxValue = true;
 
-                // start inertial location
-                Log.e(TAG, "开始进行惯性定位");
+                //get current time
                 startTime = System.currentTimeMillis();
 
+                //while service should still be running
                 while (!isStopInertialLoc) {
                     count++;
-                    // sliding window of acceleration slid
-                    // es forward
-                    moveAccWindow(getAccMod());
-                    if (isWalk()) {     //  The user is in motion
-                        // There is an effective peak value of acceleration in one step
+
+                    //throw out oldest accel val in the buffer (head) and store the newest one at tail
+                    moveAccWindow(computeAccelMagnitude());
+
+                    //if the user is deemed to be in motion
+                    if (isWalk()) {
+                        //check if there's a peak value of acceleration in one step
                         if (isStartCheckMaxValue && accSlidingWindow[15] > accSlidingWindow[14] &&
                                 accSlidingWindow[15] > accSlidingWindow[16] &&
                                 isEffectiveMaxValue(accSlidingWindow[15]) &&
                                 accTempMax < accSlidingWindow[15]) {
+
+                            //save the peak accel value
                             accTempMax = accSlidingWindow[15];
-                            // When the effective peak value of acceleration appears for the first time,
-                            // start to detect the effective valley value of acceleration
+
+                            //when peak value of acceleration appears for the first time, start to detect the valley value of acceleration
                             isStartCheckMinValue = true;
                         }
 
-                        // There is an effective valley value of acceleration in one step
+                        //check if there's a valley (min) value of accel in one step
                         if (isStartCheckMinValue && accSlidingWindow[15] < accSlidingWindow[14] &&
                                 accSlidingWindow[15] < accSlidingWindow[16] &&
                                 isEffectiveMinValue(accSlidingWindow[15]) &&
                                 accTempMin > accSlidingWindow[15]) {
+
                             accTempMin = accSlidingWindow[15];
-                            // When the effective valley value of acceleration appears for the first time,
-                            // start to detect the effective peak value of acceleration
+
+                            //when valley value of acceleration appears for the first time, start to detect the effective peak value of acceleration
                             isStartCheckMaxValue = false;
                         }
 
-                        // When the effective valley value of acceleration has been detected,
-                        // the acceleration starts to rise,
-                        // which means that the previous step has been completed and a new step is started
+                        // When the valley value of acceleration has been detected, the acceleration starts to rise, which means that the previous step has been completed and a new step is started
                         if (!isStartCheckMaxValue && accSlidingWindow[15] >= 9.0) {
                             stepCount++;
-                            // Obtaining the step size of this step by self defined nonlinear step size algorithm
-                            step = getAnStepDistance(accTempMin, accTempMax);
-                            float angle = oriNowValue[0];
 
+                            //get step size of this step
+                            step = getThisStepDist(accTempMin, accTempMax);
+
+                            //get the azimuth orientation
+                            float angle = orientCurrVal[0];
+
+                            //get distance to
                             String[] llStr = disToLL(step, posLat, posLon, angle).split(",");
-                            posLat = Double.valueOf(llStr[0]);
-                            posLon = Double.valueOf(llStr[1]);
+                            posLat = Double.parseDouble(llStr[0]);
+                            posLon = Double.parseDouble(llStr[1]);
 
-                            ClientPos = new ClientPos(posLat, posLon, NowClientPos.getNowFloor());
+                            //update the user's position
+                            pos = new UserPosition(posLat, posLon, NowClientPos.getNowFloor());
 
+                            //broadcast new user position
                             Intent posIntent = new Intent("locate");
-                            posIntent.putExtra("pos_data", ClientPos);
+                            posIntent.putExtra("pos_data", pos);
                             sendBroadcast(posIntent);
 
-                            // Parameters initialization
+                            //init params
                             accTempMax = 9.8;
                             accTempMin = 9.8;
                             isStartCheckMaxValue = true;
@@ -113,53 +151,69 @@ public class LocationService extends Service implements SensorEventListener {
                         }
                     }
 
-                    else {    // The user is at rest
+                    //otherwise, the user is standing still
+                    else {
                         posLat = NowClientPos.getNowLatitude();
                         posLon = NowClientPos.getNowLongitude();
                     }
-                    try {   // Keep the sampling frequency of 50 Hz
+
+
+                    try {
+                        //this sets the "sample rate"
                         Thread.sleep(20);
-                    } catch (InterruptedException e) {
+                    }
+                    catch (InterruptedException e) {
                         e.printStackTrace();
                         Log.e(TAG, "Inertial locate Wait Error:" + e.getMessage());
                     }
                 }
+
+                //the service has been flagged for STOPping
                 endTime = System.currentTimeMillis();
                 stopSelf();
             }
         });
-        inertialThread.setPriority(10);
-        inertialThread.start();
+
+        //set thread priority and start thread
+        locServiceThread.setPriority(10);
+        locServiceThread.start();
+
         return super.onStartCommand(intent, flags, startId);
     }
 
-//    public void onHandleIntent(@Nullable Intent intent) {
-//
-//    }
 
     /**
-     * Initialize the parameters of inertial location, pad the sliding window of acceleration
+     * Initialize the parameters of inertial location and pad the sliding window of acceleration.
      */
     private void initAccSlidingWindow() {
         for (int i = 0; i < accSlidingWindow.length; i++) {
-            accSlidingWindow[i] = getAccMod();
+            //fill entire window with current accel magnitude val
+            accSlidingWindow[i] = computeAccelMagnitude();
+
+            //sleep
             try {
                 Thread.sleep(20);
-            } catch (InterruptedException e) {
+            }
+            catch (InterruptedException e) {
                 e.printStackTrace();
-                Log.e(TAG, "Initialization Sleep Error:" + e.getMessage());
+                Log.e(TAG, "initAccSlidingWindow() encountered error while sleeping: " + e.getMessage());
             }
         }
     }
 
     /**
-     * Sliding window of acceleration move forward along the time
+     * Slide the acceleration buffer "forward" by throwing out the oldest value (head).
+     * Then, add the newest acceleration magnitude to tail of buffer.
      *
-     * @param accModel Magnitude of acceleration
+     * @param accelMagnitude Magnitude of acceleration
      */
-    private void moveAccWindow(double accModel) {
-        System.arraycopy(accSlidingWindow, 1, accSlidingWindow, 0, 30);
-        accSlidingWindow[30] = accModel;
+    private void moveAccWindow(double accelMagnitude) {
+        //arraycopy() copies source array from a specific beginning position to the destination array from the mentioned position
+        //so here we're sliding the acceleration window to the left one position (throwing out first val), leaving a space at end of the buffer
+        System.arraycopy(accSlidingWindow, 1, accSlidingWindow, 0, SLIDING_WINDOW_LEN - 1);
+
+        //store new acceleration at end of buffer
+        accSlidingWindow[SLIDING_WINDOW_LEN - 1] = accelMagnitude;
     }
 
     /**
@@ -179,7 +233,7 @@ public class LocationService extends Service implements SensorEventListener {
      * @param accMax Peak value of acceleration in a step
      * @return step size
      */
-    private double getAnStepDistance(double accMin, double accMax) {
+    private double getThisStepDist(double accMin, double accMax) {
         return kConst * ((accMax - accMin) * 3.5 + Math.pow(accMax - accMin, 0.25));
     }
 
@@ -188,10 +242,9 @@ public class LocationService extends Service implements SensorEventListener {
      *
      * @return Magnitude of acceleration collected by acceleration sensor
      */
-    private double getAccMod() {
-        return Math.pow(accNowValue[0] * accNowValue[0]
-                + accNowValue[1] * accNowValue[1]
-                + accNowValue[2] * accNowValue[2], 0.5);
+    private double computeAccelMagnitude() {
+        //magnitude of the 3D accel vector is sqrt of sum of squares
+        return Math.sqrt(accCurrVal[0] * accCurrVal[0] + accCurrVal[1] * accCurrVal[1] + accCurrVal[2] * accCurrVal[2]);
     }
 
     /**
@@ -252,20 +305,20 @@ public class LocationService extends Service implements SensorEventListener {
     public void onSensorChanged(SensorEvent event) {
         int type = event.sensor.getType();
         switch (type) {
-            // Acceleration sensor
+            //save current accelerometer val
             case Sensor.TYPE_ACCELEROMETER:
-                accNowValue = event.values;
+                accCurrVal = event.values;
                 break;
 
-            // Orientation sensor
+            //save current orientation val
             case Sensor.TYPE_ORIENTATION:
-                oriNowValue = event.values;
+                orientCurrVal = event.values;
                 break;
         }
     }
 
     /**
-     * transform distance into latitude and longitude
+     * Compute new lat,lon using distance travelled and the azimuth angle
      *
      * @param dis   distance
      * @param lat   latitude
@@ -275,9 +328,10 @@ public class LocationService extends Service implements SensorEventListener {
      */
     public String disToLL(double dis, double lat, double lon, float angle) {
         // transform distance into longitude
-        double newLon = lon + (dis * Math.sin(angle * PI_CONST)) / (M_L_L_CONST * Math.cos(lat * PI_CONST));
+        double newLon = lon + (dis * Math.sin(angle * RADIANS_PER_DEGREE)) / (M_L_L_CONST * Math.cos(lat * RADIANS_PER_DEGREE));
+
         // transform distance into latitude
-        double newLat = lat + (dis * Math.cos(angle * PI_CONST)) / M_L_L_CONST;
+        double newLat = lat + (dis * Math.cos(angle * RADIANS_PER_DEGREE)) / M_L_L_CONST;
         return newLat + "," + newLon;
     }
 
@@ -296,20 +350,5 @@ public class LocationService extends Service implements SensorEventListener {
         super.onDestroy();
         isStopInertialLoc = true;
         sensorManager.unregisterListener(this);
-//        String path = Environment.getExternalStorageDirectory().getAbsolutePath() + "/"
-//                + "test.txt";   // 获得SD卡根目录;
-//        File file = new File(path);
-//        try {
-//            if (!file.exists()) {
-//                file.createNewFile();
-//            }
-//            FileOutputStream fileOutputStream = new FileOutputStream(file);
-//            byte[] videoSETimeByte = (count + "," + stepCount + "," + (endTime - startTime)).getBytes();
-//            fileOutputStream.write(videoSETimeByte);
-//            fileOutputStream.close();
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-        // Log.e(TAG,"已停止惯性定位");
     }
 }

@@ -9,7 +9,6 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import weiner.noah.groceryguide.databinding.FragmentShoppingListItemBinding;
-import weiner.noah.groceryguide.placeholder.PlaceholderContent.PlaceholderItem;
 
 import java.util.List;
 
@@ -37,8 +36,9 @@ public class ShoppingListItemRecyclerViewAdapter extends RecyclerView.Adapter<Sh
     @Override
     public void onBindViewHolder(final ViewHolder holder, int position) {
         holder.mItem = mValues.get(position);
-        holder.mIdView.setText(String.valueOf(mValues.get(position).getProdId()));
-        holder.mContentView.setText(mValues.get(position).getName());
+        holder.mSubcatNameView.setText(mValues.get(position).getSubCatName());
+        holder.mProdNameView.setText(mValues.get(position).getName());
+        holder.mProdIdTextView.setText(String.valueOf(mValues.get(position).getProdId()));
 
         //set the onclicklistener for ea item of recyclerview
         //do this when items in the list are tapped
@@ -54,20 +54,22 @@ public class ShoppingListItemRecyclerViewAdapter extends RecyclerView.Adapter<Sh
     }
 
     public class ViewHolder extends RecyclerView.ViewHolder {
-        public final TextView mIdView;
-        public final TextView mContentView;
+        public final TextView mSubcatNameView;
+        public final TextView mProdNameView;
+        public final TextView mProdIdTextView;
         public Product mItem;
 
         public ViewHolder(FragmentShoppingListItemBinding binding) {
             super(binding.getRoot());
 
-            mIdView = binding.productId;
-            mContentView = binding.productName;
+            mSubcatNameView = binding.subcatName;
+            mProdNameView = binding.productName;
+            mProdIdTextView = binding.productId;
         }
 
         @Override
         public String toString() {
-            return super.toString() + " '" + mContentView.getText() + "'";
+            return super.toString() + " '" + mProdNameView.getText() + "'";
         }
     }
 }

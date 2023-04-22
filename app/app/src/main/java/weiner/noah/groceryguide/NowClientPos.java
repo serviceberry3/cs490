@@ -73,9 +73,9 @@ public class NowClientPos {
      *
      * @param ClientPos 用户位置
      */
-    public static void setPosPara(ClientPos ClientPos) {
-        NowClientPos.nowLongitude = ClientPos.getLongitude();
-        NowClientPos.nowLatitude = ClientPos.getLatitude();
+    public static void setPosPara(UserPosition ClientPos) {
+        NowClientPos.nowLongitude = ClientPos.getLon();
+        NowClientPos.nowLatitude = ClientPos.getLat();
         NowClientPos.nowFloor = ClientPos.getFloor();
     }
 }

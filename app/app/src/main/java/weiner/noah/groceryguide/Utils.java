@@ -39,7 +39,7 @@ public class Utils {
     }
 
 
-    //idea from: https://stackoverflow.com/questions/2920315/permutation-of-array
+    //this code is based on permutation algo found at https://stackoverflow.com/questions/2920315/permutation-of-array
     //this runs in O(arr.size()!) time. Anything above 12 for arr size will take long.
     public static void permuteArray(ArrayList<Integer> arr, int idx, ArrayList<ArrayList<Integer>> out) {
         ArrayList<Integer> arrCopy = new ArrayList<>(arr);
@@ -55,5 +55,15 @@ public class Utils {
             //Log.i(TAG, arr.toString());
             out.add(arrCopy);
         }
+    }
+
+    public static ArrayList<Integer> reverseArray(ArrayList<Integer> arr) {
+        ArrayList<Integer> ret = new ArrayList<>();
+
+        for (int i = arr.size() - 1; i >= 0; i--) {
+            ret.add(arr.get(i));
+        }
+
+        return ret;
     }
 }

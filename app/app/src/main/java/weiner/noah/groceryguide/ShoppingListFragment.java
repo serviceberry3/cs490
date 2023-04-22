@@ -51,6 +51,8 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
     private FragmentShoppingListBinding binding;
     private ShoppingListItemRecyclerViewAdapter adapter;
 
+    private ShoppingList shoppingList;
+
     private final String TAG = "ShoppingListFragment";
 
     /**
@@ -82,6 +84,9 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
         //instantiate new DBManager object and open the db
         dbManager = new DBManager(getActivity());
         dbManager.open();
+
+        //get first shopping list
+        shoppingList = mainActivity.shoppingLists.get(0);
     }
 
     @Override
@@ -97,8 +102,13 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
         binding.fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                MapUtils.startNav(navController, getParentFragmentManager(), R.id.action_ShoppingListFragment_to_MapFragment);
-                //Snackbar.make(view, "FAB pressed", Snackbar.LENGTH_LONG).setAction("Action", null).show();
+                if (shoppingList.getSize() > 0) {
+                    MapUtils.startNav(navController, getParentFragmentManager(), R.id.action_ShoppingListFragment_to_MapFragment);
+                    //Snackbar.make(view, "FAB pressed", Snackbar.LENGTH_LONG).setAction("Action", null).show();
+                }
+                else {
+                    Snackbar.make(view, "Please add some items to your shopping list", Snackbar.LENGTH_LONG).show();
+                }
             }
         });
 
@@ -111,7 +121,7 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
         //here we set the layout manager to be a LinearLayoutManager since we want a list with a single col
         recyclerView.setLayoutManager(new LinearLayoutManager(context));
 
-        adapter = new ShoppingListItemRecyclerViewAdapter(mainActivity.shoppingLists.get(0).getProdList(), this);
+        adapter = new ShoppingListItemRecyclerViewAdapter(shoppingList.getProdList(), this);
 
         //set adapter for the RecyclerView, using the shopping list at index 0 as the list data
         recyclerView.setAdapter(adapter);
@@ -144,7 +154,7 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
         TextView idText = (TextView) ((ViewGroup) selectedView).getChildAt(0);
         int prodId = Integer.parseInt(idText.getText().toString());
 
-        mainActivity.shoppingLists.get(0).removeProduct(prodId);
+        shoppingList.removeProduct(prodId);
         adapter.notifyDataSetChanged();
     }
 

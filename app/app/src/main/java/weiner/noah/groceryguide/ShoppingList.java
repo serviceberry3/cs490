@@ -28,4 +28,8 @@ public class ShoppingList {
     public List<Product> getProdList() {
         return products;
     }
+
+    public int getSize() {
+        return products.size();
+    }
 }

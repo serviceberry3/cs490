@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PointF;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.text.StaticLayout;
@@ -16,15 +17,12 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
-import android.widget.Button;
 
 import androidx.core.content.res.ResourcesCompat;
 import androidx.fragment.app.FragmentManager;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Objects;
@@ -126,11 +124,20 @@ public class StoreMap2D extends View {
     ArrayList<Integer> finalNodeOrdering = new ArrayList<Integer>();
     ArrayList<ArrayList<Integer>> finalRoute = new ArrayList<ArrayList<Integer>>();
 
+    //which path should we be showing now?
+    int pathIdx = -1; //-1 means no path
+
     //zoom and pan: possible states
     private enum zoomPanState {
         STILL,
         PAN,
         ZOOM
+    }
+
+    private enum nodeColor {
+        RED,
+        GREEN,
+        CHECKED
     }
 
     //the current state we're in
@@ -376,12 +383,18 @@ public class StoreMap2D extends View {
         cellHeight = Constants.cellHeight;
 
         cellPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        cellPaint.setColor(Color.RED);
+        cellPaint.setColor(Color.RED); //color is red by default
         cellPaint.setStyle(Paint.Style.FILL);
+
+
 
         //load (from db) and lay out the subcategory name labels, i.e. find all of their drawing positions on the canvas
         loadSubcatNames();
         adjustSubCatNames();
+    }
+
+    public ArrayList<Integer> getFinalNodeOrdering() {
+        return finalNodeOrdering;
     }
 
 
@@ -875,7 +888,7 @@ public class StoreMap2D extends View {
         }*/
 
 
-        colorFinalRoute(canvas);
+        colorPath(canvas);
 
         /*
         ArrayList<Node> data = mGraph.getData();
@@ -892,11 +905,40 @@ public class StoreMap2D extends View {
         canvas.restore();
     }
 
-    //fill a node with red
-    public void colorNode(Node node, Canvas canvas) {
+    //fill a node (map grid cell) with some color
+    public void colorNode(Node node, nodeColor color, Canvas canvas) {
         RectF cellBounds = node.getCellBounds();
+        int idx = 0;
+        float squareWidth = Constants.cellWidth / 3;
+
         if (cellBounds != null) {
-            canvas.drawRect(node.getCellBounds(), cellPaint);
+            switch(color) {
+                case RED:
+                    cellPaint.setColor(Color.RED);
+                    canvas.drawRect(cellBounds, cellPaint);
+                    break;
+                case GREEN:
+                    cellPaint.setColor(Color.GREEN);
+                    canvas.drawRect(cellBounds, cellPaint);
+                    break;
+                case CHECKED:
+                    for (float left = cellBounds.left; left + squareWidth <= cellBounds.right + 0.1; left += squareWidth) {
+                        for (float top = cellBounds.top; top + squareWidth <= cellBounds.bottom + 0.1; top += squareWidth) {
+                            if (idx % 2 == 0) {
+                                cellPaint.setColor(Color.BLACK);
+                            }
+                            else {
+                                cellPaint.setColor(Color.WHITE);
+                            }
+
+                            canvas.drawRect(new RectF(left, top, left + squareWidth, top + squareWidth), cellPaint); //left, top, rt, bottom
+
+                            idx++;
+                        }
+                    }
+            }
+
+
         }
         else {
             Log.i(TAG, "colorNode: this node's cellBounds RectF is null!! So it's an obstructed cell.");
@@ -906,22 +948,43 @@ public class StoreMap2D extends View {
     public void colorShortestPath(ArrayList<Integer> backTrackedPath, Canvas canvas) {
         for (Integer i : backTrackedPath) {
             //color in the nodes
-            colorNode(mGraph.getData().get(i), canvas);
+            colorNode(mGraph.getData().get(i), nodeColor.RED, canvas);
         }
     }
 
-    public void colorFinalRoute(Canvas canvas) {
-        ArrayList<Integer> path;
+    public void setPathIdx(int newIdx) {
+        this.pathIdx = newIdx;
+    }
 
-        for (int i = 0; i < finalNodeOrdering.size() - 1; i++) {
-            path = fetchBacktrackedPathBetweenNodes(finalNodeOrdering.get(i), finalNodeOrdering.get(i + 1));
+    public int getPathIdx() {
+        return this.pathIdx;
+    }
+
+    public void colorPath(Canvas canvas) {
+        ArrayList<Integer> path;
+        nodeColor color;
+
+        if (pathIdx < finalNodeOrdering.size() - 1 && pathIdx >= 0) {
+            //get the full path from this node to the next
+            path = fetchBacktrackedPathBetweenNodes(finalNodeOrdering.get(pathIdx), finalNodeOrdering.get(pathIdx + 1));
 
             if (path != null) {
+                //FIXME: why is this here?
                 finalRoute.add(path);
 
-                for (Integer node : path) {
+                for (int i = 0; i < path.size(); i++) {
+                    if (i == 0) {
+                        color = nodeColor.GREEN;
+                    }
+                    else if (i == path.size() - 1) {
+                        color = nodeColor.CHECKED;
+                    }
+                    else {
+                        color = nodeColor.RED;
+                    }
+
                     //color in the nodes
-                    colorNode(mGraph.getData().get(node), canvas);
+                    colorNode(mGraph.getData().get(path.get(i)), color, canvas);
                 }
             }
         }
@@ -1167,7 +1230,7 @@ public class StoreMap2D extends View {
                 Integer srcNode = nodesToHit.get(i);
                 Integer dstNode = nodesToHit.get(j);
 
-                Log.i(TAG, "Computing shortest path between source node " + srcNode + " and dest node " + dstNode);
+                //Log.i(TAG, "Computing shortest path between source node " + srcNode + " and dest node " + dstNode);
                 thisPath = new ShortestPath(srcNode, dstNode);
                 //create new shortest path
                 shortestPaths.add(thisPath);
@@ -1189,7 +1252,7 @@ public class StoreMap2D extends View {
                     if (Objects.equals(currNode, dstNode)) {
                         //Log.i(TAG, "REACHED DEST NODE");
                         thisPath.setLen(Objects.requireNonNull(thisPath.getDistSoFar().get(currNode)).intValue());
-                        Log.i(TAG, "Set path len to " + thisPath.getLen() + " for path from src " + srcNode + " to dst " + dstNode);
+                        //Log.i(TAG, "Set path len to " + thisPath.getLen() + " for path from src " + srcNode + " to dst " + dstNode);
                         break;
                     }
 
@@ -1232,7 +1295,7 @@ public class StoreMap2D extends View {
     }
 
     public float fetchShortestDistBetweenNodes(Integer n1, Integer n2) {
-        Log.i(TAG, "fetchShortestDistBetweenNodes(): looking for nodes " + n1 + " and " + n2);
+        //Log.i(TAG, "fetchShortestDistBetweenNodes(): looking for nodes " + n1 + " and " + n2);
 
         for (ArrayList<Integer> list : backTrackedShortestPaths) {
             if ((Objects.equals(list.get(0), n1) && Objects.equals(list.get(list.size() - 1), n2)) ||
@@ -1246,12 +1309,16 @@ public class StoreMap2D extends View {
     }
 
     public ArrayList<Integer> fetchBacktrackedPathBetweenNodes(Integer n1, Integer n2) {
-        Log.i(TAG, "fetchBacktrackedPathBetweenNodes called for nodes " + n1 + ", " + n2);
+        //Log.i(TAG, "fetchBacktrackedPathBetweenNodes called for nodes " + n1 + ", " + n2);
 
         for (ArrayList<Integer> list : backTrackedShortestPaths) {
-            if ((Objects.equals(list.get(0), n1) && Objects.equals(list.get(list.size() - 1), n2)) ||
-                    (Objects.equals(list.get(0), n2) && Objects.equals(list.get(list.size() - 1), n1))) {
+            if ((Objects.equals(list.get(0), n1) && Objects.equals(list.get(list.size() - 1), n2))) {
                 return list;
+            }
+
+            //the path is here but it's the reverse of what we're looking for
+            if ((Objects.equals(list.get(0), n2) && Objects.equals(list.get(list.size() - 1), n1))) {
+                return Utils.reverseArray(list);
             }
         }
 
@@ -1287,12 +1354,12 @@ public class StoreMap2D extends View {
                 list.add(0, startNode);
                 list.add(endNode);
 
-                Log.i(TAG, "computeRouteOrder(): this permutation to compute tot dist of is " + list);
+                //Log.i(TAG, "computeRouteOrder(): this permutation to compute tot dist of is " + list);
 
                 //compute total dist for this candidate route
                 for (int i = 0; i < list.size() - 1; i++) {
                     dist = fetchShortestDistBetweenNodes(list.get(i), list.get(i + 1));
-                    Log.i(TAG, "computeRouteOrder(): got route dist of " + dist + " from src " + list.get(i) + " to dst " + list.get(i + 1));
+                    //Log.i(TAG, "computeRouteOrder(): got route dist of " + dist + " from src " + list.get(i) + " to dst " + list.get(i + 1));
 
                     if (dist >= 0f) {
                         thisRouteDist += dist;
@@ -1310,7 +1377,7 @@ public class StoreMap2D extends View {
             }
 
             //Log.i(TAG, out.toString());
-            Log.i(TAG, "finalNodeOrdering is " + finalNodeOrdering);
+            //Log.i(TAG, "finalNodeOrdering is " + finalNodeOrdering);
         }
     }
 }

@@ -22,4 +22,7 @@
     <string name="empty_list_text">No products found</string>
 
     <string name="next_path_button">Next</string>
+    <string name="finish_path_button">Finish</string>
+
+    <string name="proceed_to">Proceed to\u0020</string>
 </resources>
