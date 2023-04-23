@@ -3,6 +3,7 @@ package weiner.noah.groceryguide;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Matrix;
 import android.graphics.Path;
 import android.graphics.RectF;
@@ -23,6 +24,9 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 
+import org.osmdroid.util.GeoPoint;
+import org.osmdroid.views.overlay.mylocation.DirectedLocationOverlay;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -33,6 +37,7 @@ public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
     private Graph mGraph = new Graph();
     private SSWhalley ssWhalley = new SSWhalley();
+    private DirectedLocationOverlay mDLOverlay;
 
     NavHostFragment navHostFragment;
     NavController navController;
@@ -46,6 +51,7 @@ public class MainActivity extends AppCompatActivity {
     private FragmentManager fragmentManager;
 
     private Intent inertialLocIntent;
+    private DataReceiver dataReceiver;
 
 
     private String TAG = "MainActivity";
@@ -53,21 +59,20 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         fragmentManager = getSupportFragmentManager();
-        if (fragmentManager == null) {
-            Log.i(TAG, "fragmentManager is NULL!!");
-        }
 
         super.onCreate(savedInstanceState);
 
-        inertialLocIntent = new Intent(MainActivity.this, LocationService.class);
-
+        inertialLocIntent = new Intent(this, LocationService.class);
+        initReceiver();
 
         //getSupportActionBar().setTitle();
         //getSupportActionBar().setSubtitle();
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
 
-
+        //FIXME: don't need these
+        mDLOverlay = new DirectedLocationOverlay(getApplication());
+        mDLOverlay.setEnabled(true);
 
         //set view to root view
         setContentView(binding.getRoot());
@@ -84,6 +89,8 @@ public class MainActivity extends AppCompatActivity {
 
         //create the graph
         createGraph();
+
+        startIndoorLoc();
     }
 
     @Override
@@ -327,6 +334,7 @@ public class MainActivity extends AppCompatActivity {
 
                     //CASE 6: upper edge, three possible neighbors
                     else if (top == 0) {
+
                         possibleNeighbors.add(currId + (int) Constants.mapFrameRectNumCellsWide);
                         possibleNeighbors.add(currId + 1);
                         possibleNeighbors.add(currId - 1);
@@ -374,55 +382,80 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startIndoorLoc() {
-        UserPosition userPos = new UserPosition(NowClientPos.getNowLatitude(), NowClientPos.getNowLongitude());
+        Log.i(TAG, "startIndoorLoc() called!");
+
+        //CurrentUserPosition probably won't hold any lat/lon yet
+        UserPosition userPos = new UserPosition(CurrentUserPosition.getCurrLat(), CurrentUserPosition.getCurrLon());
         inertialLocIntent.putExtra("init_pos", userPos);
 
         startService(inertialLocIntent);
     }
 
     /**
-     * Close indoor positioning module
+     * Close indoor positioning module.
      */
     private void stopIndoorLoc() {
-        isCanReadNfc = false;    // Close NFC module
         stopService(inertialLocIntent);  // Close indoor positioning module
     }
 
+    /**
+     * Initialize the broadcast receiver
+     */
+    private void initReceiver() {
+        dataReceiver = new DataReceiver();
 
+        IntentFilter dataIntentFilter = new IntentFilter();
+        dataIntentFilter.addAction("locate");
+        dataIntentFilter.addAction("indoor_map");
+        dataIntentFilter.addAction("no_map");
+        dataIntentFilter.addAction("navigate");
+        dataIntentFilter.addAction("no_nav_info");
+        dataIntentFilter.addAction("stop_nav");
+
+        //register receive to listen to new position data coming from the LocationService
+        registerReceiver(dataReceiver, dataIntentFilter);
+    }
+
+
+    private boolean isFirstLocate = true;
+    private boolean isInitIndoor = false;
 
     /**
      * The broadcast receiver. This receive receives broadcasts of user's location.
      */
     class DataReceiver extends BroadcastReceiver {
+        double lat, lon;
+
         @Override
         public void onReceive(Context context, final Intent intent) {
             String action = intent.getAction();
-            switch (Objects.requireNonNull(action)) {
-                case "locate":
-                    //get the broadcasted user position
-                    UserPosition userPosition = (UserPosition) intent.getSerializableExtra("pos_data");
-                    NowClientPos.setPosPara(userPosition);
 
-                    GeoPoint geoPoint = new GeoPoint(userPosition.getLatitude(), userPosition.getLongitude());
-                    mDLOverlay.setLocation(geoPoint);
+            if ("locate".equals(Objects.requireNonNull(action))) {
+                //get broadcasted user position and update CurrentUserPosition
+                UserPosition userPosition = (UserPosition) intent.getSerializableExtra("pos_data");
+                CurrentUserPosition.setPos(userPosition);
 
-                    if (isFirstLocate) {
-                        mController.animateTo(geoPoint);
-                        isFirstLocate = false;
-                        mMapView.getOverlays().add(mDLOverlay);
-                    }
-                    updateLocOverlay();
+                lat = userPosition.getLat();
+                lon = userPosition.getLon();
 
-                    if (isInitIndoor) {   // 如果是初始就在室内，则通过wifi定位的结果请求地图
-                        isInitIndoor = false;
-                        Intent getIndoorMapIntent = getIndoorMapIntent(NowClientPos.getNowFloor(),
-                                NowClientPos.getNowLongitude(), NowClientPos.getNowLatitude());
-                        startService(getIndoorMapIntent);
-                        // Open inertial positioning module
-                        inertialLocIntent.putExtra("init_pos", userPosition);
-                        startService(inertialLocIntent);
-                    }
-                    break;
+                Log.i(TAG, "DataReceive got intent location: lat is " + lat + ", lon is " + lon);
+
+                GeoPoint geoPoint = new GeoPoint(lat, lon);
+                mDLOverlay.setLocation(geoPoint);
+
+                /*
+                if (isFirstLocate) {
+                    mController.animateTo(geoPoint);
+                    isFirstLocate = false;
+                }*/
+
+                //if this is the first time we're receiving a broadcast of pos_data, send back the current user pos as the initial pos
+                if (isInitIndoor) {
+                    isInitIndoor = false;
+
+                    inertialLocIntent.putExtra("init_pos", userPosition);
+                    startService(inertialLocIntent);
+                }
             }
         }
     }

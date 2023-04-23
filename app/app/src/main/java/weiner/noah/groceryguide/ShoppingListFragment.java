@@ -66,7 +66,7 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        Log.i(TAG, "Created!!");
+        //Log.i(TAG, "Created!!");
 
         mainActivity = (MainActivity) getActivity();
 

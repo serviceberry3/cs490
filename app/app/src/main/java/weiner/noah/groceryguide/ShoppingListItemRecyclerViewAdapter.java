@@ -43,7 +43,7 @@ public class ShoppingListItemRecyclerViewAdapter extends RecyclerView.Adapter<Sh
         //set the onclicklistener for ea item of recyclerview
         //do this when items in the list are tapped
         holder.itemView.setOnClickListener(view -> {
-            Log.i(TAG, "ITEM CLICKED!");
+            //Log.i(TAG, "ITEM CLICKED!");
             shoppingListFragment.showMenu(view);
         });
     }

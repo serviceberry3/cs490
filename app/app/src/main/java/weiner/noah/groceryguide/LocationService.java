@@ -21,7 +21,7 @@ public class LocationService extends Service implements SensorEventListener {
     private float[] orientCurrVal = new float[3];    // storing orientation values returned by sensor
 
     //buffer of acceleration magnitude vals
-    private double[] accSlidingWindow = new double[SLIDING_WINDOW_LEN];
+    private double[] accelSlidingWindowBuffer = new double[SLIDING_WINDOW_LEN];
 
     private static String TAG = "LocationService";
 
@@ -31,9 +31,16 @@ public class LocationService extends Service implements SensorEventListener {
     //the value of k in self defined nonlinear step size algorithm
     private static final double kConst = 0.026795089522;
 
-    private static final double M_L_L_CONST = 111194.926644558;
+    //private static final double M_L_L_CONST = 111194.926644558;
+    private static final double DIST_MULTIPLIER = 1;
 
     private static final int SLIDING_WINDOW_LEN = 31;
+
+    private static final double MAX_ACCEL_VAL_LOWER_BOUND = 11.8;
+    private static final double MAX_ACCEL_VAL_UPPER_BOUND = 20.0;
+
+    private static final double MIN_ACCEL_VAL_LOWER_BOUND = 4.0;
+    private static final double MIN_ACCEL_VAL_UPPER_BOUND = 8.8;
 
     //background Thread on which the service runs
     private Thread locServiceThread;
@@ -42,9 +49,13 @@ public class LocationService extends Service implements SensorEventListener {
     private int count = 0, stepCount = 0;
     private long startTime, endTime;
 
+    private int accFrame = 0, orFrame = 0;
+
     @Override
     public void onCreate() {
         super.onCreate();
+
+        Log.i(TAG, "LocationService onCreate()!");
 
         //get sensor manager
         sensorManager = (SensorManager) getApplicationContext().getSystemService(Context.SENSOR_SERVICE);
@@ -53,7 +64,7 @@ public class LocationService extends Service implements SensorEventListener {
         Sensor accelerometer = Objects.requireNonNull(sensorManager).getDefaultSensor(Sensor.TYPE_ACCELEROMETER); //accelerometer vals are: [0] x accel, [1] y accel, [2] z accel
         Sensor orientationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION); //orientation vals are: [0] azimuth (deg of rotation around -z axis)
 
-        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_FASTEST);
+        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME);
         sensorManager.registerListener(this, orientationSensor, SensorManager.SENSOR_DELAY_GAME);
     }
 
@@ -66,6 +77,8 @@ public class LocationService extends Service implements SensorEventListener {
      */
     @Override
     public int onStartCommand(final Intent intent, int flags, int startId) {
+        Log.i(TAG, "onStartCommand() called!");
+
         //create new thread
         locServiceThread = new Thread(new Runnable() {
             @Override
@@ -76,7 +89,11 @@ public class LocationService extends Service implements SensorEventListener {
                 //get the initial client position via the intent
                 UserPosition pos = (UserPosition) Objects.requireNonNull(intent).getSerializableExtra("init_pos");
 
-                double step, accTempMax = 9.8, accTempMin = 9.8;
+                double stepSize;
+
+                //when phone is at rest, the acceleration magnitude should be about 9.8 (since z accel is calibrated to be 9.8 at rest)
+                //z axis points down to ground, -z points up to sky?
+                double accelMaxTemp = 9.8, accelMinTemp = 9.8;
 
                 //get initial lat and lon
                 double posLat = pos.getLat(), posLon = pos.getLon();
@@ -91,52 +108,54 @@ public class LocationService extends Service implements SensorEventListener {
                     count++;
 
                     //throw out oldest accel val in the buffer (head) and store the newest one at tail
+                    //notice we're recording acceleration magnitudes, no direction information coming from accelerometer Sensor
                     moveAccWindow(computeAccelMagnitude());
 
                     //if the user is deemed to be in motion
-                    if (isWalk()) {
-                        //check if there's a peak value of acceleration in one step
-                        if (isStartCheckMaxValue && accSlidingWindow[15] > accSlidingWindow[14] &&
-                                accSlidingWindow[15] > accSlidingWindow[16] &&
-                                isEffectiveMaxValue(accSlidingWindow[15]) &&
-                                accTempMax < accSlidingWindow[15]) {
+                    if (isUserInMotion()) {
+                        //check if there's a peak value of acceleration at the center of the window buffer
+                        if (isStartCheckMaxValue && accelSlidingWindowBuffer[15] > accelSlidingWindowBuffer[14] &&
+                                accelSlidingWindowBuffer[15] > accelSlidingWindowBuffer[16] &&
+                                isValidMaxAccelVal(accelSlidingWindowBuffer[15]) && //make sure peak value is high enough
+                                accelMaxTemp < accelSlidingWindowBuffer[15]) { //make sure the peak value has some positive magnitude
 
                             //save the peak accel value
-                            accTempMax = accSlidingWindow[15];
+                            accelMaxTemp = accelSlidingWindowBuffer[15];
 
                             //when peak value of acceleration appears for the first time, start to detect the valley value of acceleration
                             isStartCheckMinValue = true;
                         }
 
-                        //check if there's a valley (min) value of accel in one step
-                        if (isStartCheckMinValue && accSlidingWindow[15] < accSlidingWindow[14] &&
-                                accSlidingWindow[15] < accSlidingWindow[16] &&
-                                isEffectiveMinValue(accSlidingWindow[15]) &&
-                                accTempMin > accSlidingWindow[15]) {
+                        //check if there's a valley (min) value of accel at the center of the window buffer
+                        if (isStartCheckMinValue && accelSlidingWindowBuffer[15] < accelSlidingWindowBuffer[14] &&
+                                accelSlidingWindowBuffer[15] < accelSlidingWindowBuffer[16] &&
+                                isValidMinAccelVal(accelSlidingWindowBuffer[15]) && //make sure valley value is in correct rg of vals
+                                accelMinTemp > accelSlidingWindowBuffer[15]) { //make sure valley value has some negative magnitude //FIXME wut??
 
-                            accTempMin = accSlidingWindow[15];
+                            accelMinTemp = accelSlidingWindowBuffer[15];
 
                             //when valley value of acceleration appears for the first time, start to detect the effective peak value of acceleration
                             isStartCheckMaxValue = false;
                         }
 
-                        // When the valley value of acceleration has been detected, the acceleration starts to rise, which means that the previous step has been completed and a new step is started
-                        if (!isStartCheckMaxValue && accSlidingWindow[15] >= 9.0) {
+                        //if a valid valley value of acceleration has been detected, the acceleration starts to rise, which means that the previous step has been completed and a new step is started
+                        if (!isStartCheckMaxValue && accelSlidingWindowBuffer[15] >= 9.0) {
                             stepCount++;
 
-                            //get step size of this step
-                            step = getThisStepDist(accTempMin, accTempMax);
+                            //get approximate step size of this step (in meters)
+                            stepSize = getThisStepDist(accelMinTemp, accelMaxTemp);
 
                             //get the azimuth orientation
                             float angle = orientCurrVal[0];
 
-                            //get distance to
-                            String[] llStr = disToLL(step, posLat, posLon, angle).split(",");
+                            //get new lat,lon by adding the step dist
+                            String[] llStr = computeNewPos(stepSize, posLat, posLon, angle).split(",");
+
                             posLat = Double.parseDouble(llStr[0]);
                             posLon = Double.parseDouble(llStr[1]);
 
                             //update the user's position
-                            pos = new UserPosition(posLat, posLon, NowClientPos.getNowFloor());
+                            pos = new UserPosition(posLat, posLon);
 
                             //broadcast new user position via an Intent obj
                             Intent posIntent = new Intent("locate");
@@ -144,8 +163,9 @@ public class LocationService extends Service implements SensorEventListener {
                             sendBroadcast(posIntent);
 
                             //init params
-                            accTempMax = 9.8;
-                            accTempMin = 9.8;
+                            accelMaxTemp = 9.8;
+                            accelMinTemp = 9.8;
+
                             isStartCheckMaxValue = true;
                             isStartCheckMinValue = false;
                         }
@@ -153,8 +173,8 @@ public class LocationService extends Service implements SensorEventListener {
 
                     //otherwise, the user is standing still
                     else {
-                        posLat = NowClientPos.getNowLatitude();
-                        posLon = NowClientPos.getNowLongitude();
+                        posLat = CurrentUserPosition.getCurrLat();
+                        posLon = CurrentUserPosition.getCurrLon();
                     }
 
 
@@ -164,7 +184,7 @@ public class LocationService extends Service implements SensorEventListener {
                     }
                     catch (InterruptedException e) {
                         e.printStackTrace();
-                        Log.e(TAG, "Inertial locate Wait Error:" + e.getMessage());
+                        Log.e(TAG, "Location wait error:" + e.getMessage());
                     }
                 }
 
@@ -186,9 +206,9 @@ public class LocationService extends Service implements SensorEventListener {
      * Initialize the parameters of inertial location and pad the sliding window of acceleration.
      */
     private void initAccSlidingWindow() {
-        for (int i = 0; i < accSlidingWindow.length; i++) {
+        for (int i = 0; i < accelSlidingWindowBuffer.length; i++) {
             //fill entire window with current accel magnitude val
-            accSlidingWindow[i] = computeAccelMagnitude();
+            accelSlidingWindowBuffer[i] = computeAccelMagnitude();
 
             //sleep
             try {
@@ -210,24 +230,25 @@ public class LocationService extends Service implements SensorEventListener {
     private void moveAccWindow(double accelMagnitude) {
         //arraycopy() copies source array from a specific beginning position to the destination array from the mentioned position
         //so here we're sliding the acceleration window to the left one position (throwing out first val), leaving a space at end of the buffer
-        System.arraycopy(accSlidingWindow, 1, accSlidingWindow, 0, SLIDING_WINDOW_LEN - 1);
+        System.arraycopy(accelSlidingWindowBuffer, 1, accelSlidingWindowBuffer, 0, SLIDING_WINDOW_LEN - 1);
 
         //store new acceleration at end of buffer
-        accSlidingWindow[SLIDING_WINDOW_LEN - 1] = accelMagnitude;
+        accelSlidingWindowBuffer[SLIDING_WINDOW_LEN - 1] = accelMagnitude;
     }
 
     /**
-     * Judging whether the user is in motion according to the standard deviation of acceleration
-     * When the standard deviation of acceleration is greater than 0.8, the user is considered to be in motion
+     * Judging whether the user is in motion according to the standard deviation of the acceleration sliding window buffer.
+     * When the standard deviation of acceleration is greater than 0.8, the user is considered to be in motion since that means the acceleration moved significantly
+     * in the past n sensor frames.
      *
-     * @return If the user is in motion
+     * @return Whether or not user is in motion.
      */
-    private boolean isWalk() {
+    private boolean isUserInMotion() {
         return getAccStd() >= 0.8;
     }
 
     /**
-     * Obtain the step size of one step by self defined nonlinear step size algorithm
+     * Obtain the step size of one step by self-defined nonlinear step size algorithm
      *
      * @param accMin Valley value of acceleration in a step
      * @param accMax Peak value of acceleration in a step
@@ -248,9 +269,9 @@ public class LocationService extends Service implements SensorEventListener {
     }
 
     /**
-     * Method for calculating the standard deviation of acceleration in sliding window
+     * Calculate the standard deviation of acceleration in sliding window buffer.
      *
-     * @return Standard deviation of acceleration in the sliding window
+     * @return Standard deviation of acceleration in the sliding window buffer.
      */
     private double getAccStd() {
         return Math.sqrt(getAccVar());
@@ -258,46 +279,51 @@ public class LocationService extends Service implements SensorEventListener {
 
 
     /**
-     * Method for calculating the variance of acceleration in sliding window
+     * Calculate the variance of acceleration in sliding window buffer.
      *
-     * @return Variance of acceleration in the sliding window
+     * @return Variance of acceleration in the sliding window buffer.
      */
     private double getAccVar() {
         double accVar = 0;
-        double accMean = getAccMean();
-        for (double anAccSlidingWindow : this.accSlidingWindow)
-            accVar += (anAccSlidingWindow - accMean) * (anAccSlidingWindow - accMean);
-        return accVar / accSlidingWindow.length;
+        double accMean = getAccelMean();
+
+        //variance = (sum[(val - mean)^2] for all vals) / total num of vals
+        for (double val : accelSlidingWindowBuffer)
+            accVar += (val - accMean) * (val - accMean);
+
+        return accVar / accelSlidingWindowBuffer.length;
     }
 
     /**
-     * Method for calculating the mean of acceleration in sliding window
+     * Calculate the mean of acceleration in sliding window buffer (last n number of acceleration vals)
      *
-     * @return Mean of acceleration in the sliding window
+     * @return Mean of acceleration in the sliding window buffer.
      */
-    private double getAccMean() {
-        double sumAcc = 0;
-        for (double anAccSlidingWindow : this.accSlidingWindow)
-            sumAcc += anAccSlidingWindow;
-        return sumAcc / accSlidingWindow.length;
+    private double getAccelMean() {
+        double cumSum = 0;
+
+        for (double val : accelSlidingWindowBuffer)
+            cumSum += val;
+
+        return cumSum / accelSlidingWindowBuffer.length;
     }
 
     /**
-     * Judging whether the current peak acceleration exceeds the threshold value and become an effective peak acceleration
+     * Determine whether the current peak acceleration seems appropriate (falls within our specified threshold).
      *
-     * @return whether becoming an effective peak acceleration
+     * @return Whether or not the value of acceleration passed to the fxn is acceptable to use as a max value in the user's step.
      */
-    private boolean isEffectiveMaxValue(double acc) {
-        return acc > 11.8 && acc < 20.0;
+    private boolean isValidMaxAccelVal(double accelVal) {
+        return accelVal > MAX_ACCEL_VAL_LOWER_BOUND && accelVal < MAX_ACCEL_VAL_UPPER_BOUND;
     }
 
     /**
-     * Judging whether the current valley acceleration exceeds the threshold value and become an effective peak acceleration
+     * Determine whether the current min "valley" acceleration seems appropriate (falls within our specified threshold).
      *
-     * @return whether becoming an effective valley acceleration
+     * @return Whether or not the value of acceleration passe to the fxn is acceptable to use as a min value in the user's step.
      */
-    private boolean isEffectiveMinValue(double acc) {
-        return acc < 8.8 && acc > 4.0;
+    private boolean isValidMinAccelVal(double accelVal) {
+        return accelVal < MIN_ACCEL_VAL_UPPER_BOUND && accelVal > MIN_ACCEL_VAL_LOWER_BOUND;
     }
 
 
@@ -308,11 +334,23 @@ public class LocationService extends Service implements SensorEventListener {
             //save current accelerometer val
             case Sensor.TYPE_ACCELEROMETER:
                 accCurrVal = event.values;
+
+                /*
+                if (accFrame % 6 == 0) {
+                    Log.i(TAG, "Accelerometer: x " + accCurrVal[0] + ", y " + accCurrVal[1] + ", z " + accCurrVal[2]);
+                }*/
+                accFrame++;
                 break;
 
             //save current orientation val
             case Sensor.TYPE_ORIENTATION:
                 orientCurrVal = event.values;
+
+                /*
+                if (orFrame % 6 == 0) {
+                    Log.i(TAG, "Orientation: azimuth " + orientCurrVal[0]);
+                }*/
+                orFrame++;
                 break;
         }
     }
@@ -320,19 +358,20 @@ public class LocationService extends Service implements SensorEventListener {
     /**
      * Compute new lat,lon using distance travelled and the azimuth angle
      *
-     * @param dis   distance
-     * @param lat   latitude
-     * @param lon   longitude
-     * @param angle angle
+     * @param distTravelled   distance
+     * @param currXPos   latitude
+     * @param currYPos   longitude
+     * @param azimuthAngle angle
      * @return string composed of latitude and longitude
      */
-    public String disToLL(double dis, double lat, double lon, float angle) {
-        // transform distance into longitude
-        double newLon = lon + (dis * Math.sin(angle * RADIANS_PER_DEGREE)) / (M_L_L_CONST * Math.cos(lat * RADIANS_PER_DEGREE));
+    public String computeNewPos(double distTravelled, double currXPos, double currYPos, float azimuthAngle) {
+        //transform distance into longitude
+        double newYPos = currYPos + (distTravelled * Math.sin(azimuthAngle * RADIANS_PER_DEGREE)) / (DIST_MULTIPLIER * Math.cos(currXPos * RADIANS_PER_DEGREE));
 
-        // transform distance into latitude
-        double newLat = lat + (dis * Math.cos(angle * RADIANS_PER_DEGREE)) / M_L_L_CONST;
-        return newLat + "," + newLon;
+        //transform distance into latitude
+        double newXPos = currXPos + (distTravelled * Math.cos(azimuthAngle * RADIANS_PER_DEGREE)) / DIST_MULTIPLIER;
+
+        return newXPos + "," + newYPos;
     }
 
     @Override
