@@ -21,4 +21,10 @@
         android:orderInCategory="100"
         android:title="@string/action_view_list"
         app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_go_calib"
+        android:orderInCategory="100"
+        android:title="@string/action_go_calib"
+        app:showAsAction="never" />
 </menu>

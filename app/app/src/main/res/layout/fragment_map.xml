@@ -11,8 +11,8 @@
         android:id="@+id/store_map"
         app:showText="true"
         app:labelPosition="left"
-        android:layout_height="match_parent"
-        android:layout_width="match_parent"/>
+        android:layout_height="1800px"
+        android:layout_width="match_parent" />
 
     <TextView
         android:id="@+id/path_description"
@@ -36,6 +36,130 @@
         android:text="@string/next_path_button"
         android:visibility="invisible"
         android:backgroundTint="@color/green"/>
+
+
+
+
+
+    <!--FOR DEBUG-->
+
+    <TextView
+        android:id="@+id/accel_x"
+        android:layout_width="200dp"
+        android:layout_height="30dp"
+        android:layout_marginStart="30dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginTop="0dp"
+        android:layout_above="@+id/accel_y"
+        android:text="x accel"
+        android:visibility="invisible"
+        />
+
+    <TextView
+        android:id="@+id/accel_y"
+        android:layout_width="200dp"
+        android:layout_height="30dp"
+        android:layout_marginStart="30dp"
+        android:layout_marginEnd="20dp"
+        android:layout_above="@+id/accel_z"
+        android:layout_marginTop="-5dp"
+        android:text="y accel"
+        android:visibility="invisible"
+        />
+
+    <TextView
+        android:id="@+id/accel_z"
+        android:layout_width="200dp"
+        android:layout_height="30dp"
+        android:layout_marginStart="30dp"
+        android:layout_marginEnd="20dp"
+        android:layout_above="@+id/pos_x"
+        android:layout_marginTop="-5dp"
+        android:text="z accel"
+        android:visibility="invisible"
+        />
+
+
+
+    <TextView
+        android:id="@+id/vel_x"
+        android:layout_width="200dp"
+        android:layout_height="30dp"
+        android:layout_marginStart="30dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginTop="0dp"
+        android:layout_above="@+id/vel_y"
+        android:text="x vel"
+        android:visibility="invisible"
+        />
+
+    <TextView
+        android:id="@+id/vel_y"
+        android:layout_width="200dp"
+        android:layout_height="30dp"
+        android:layout_marginStart="30dp"
+        android:layout_marginEnd="20dp"
+        android:layout_above="@+id/vel_z"
+        android:layout_marginTop="-5dp"
+        android:text="y vel"
+        android:visibility="invisible"
+        />
+
+    <TextView
+        android:id="@+id/vel_z"
+        android:layout_width="200dp"
+        android:layout_height="30dp"
+        android:layout_marginStart="30dp"
+        android:layout_marginEnd="20dp"
+        android:layout_above="@+id/accel_x"
+        android:layout_marginTop="-5dp"
+        android:text="z vel"
+        android:visibility="invisible"
+        />
+
+
+    <TextView
+        android:id="@+id/pos_x"
+        android:layout_width="200dp"
+        android:layout_height="30dp"
+        android:layout_marginStart="30dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginTop="0dp"
+        android:text="pos_x (m)"
+        android:layout_below="@+id/store_map"
+        />
+
+    <TextView
+        android:id="@+id/pos_y"
+        android:layout_width="200dp"
+        android:layout_height="30dp"
+        android:layout_marginStart="30dp"
+        android:layout_marginEnd="20dp"
+        android:layout_below="@+id/pos_x"
+        android:layout_marginTop="-5dp"
+        android:text="pos_y (m)"
+        />
+
+    <TextView
+        android:id="@+id/azim"
+        android:layout_width="200dp"
+        android:layout_height="30dp"
+        android:layout_marginStart="30dp"
+        android:layout_marginEnd="20dp"
+        android:layout_below="@+id/pos_y"
+        android:layout_marginTop="-5dp"
+        android:text="azimuth (deg)"
+        android:visibility="invisible"
+        />
+
+    <Button
+        android:id="@+id/clear_pos_button"
+        android:layout_width="100dp"
+        android:layout_height="60dp"
+        android:layout_marginStart="250dp"
+        android:text="Clear"
+        android:visibility="invisible"
+        />
 
 
 </RelativeLayout>

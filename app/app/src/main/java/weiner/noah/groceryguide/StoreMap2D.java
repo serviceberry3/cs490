@@ -36,7 +36,7 @@ public class StoreMap2D extends View {
     public int textPos;
 
     //PAINTS
-    public Paint textPaint, dotPaint, cameraRectPaint, zoneOfInterestRectPaint;
+    public Paint textPaint, dotPaint, cameraRectPaint, zoneOfInterestRectPaint, userLocPaint;
     public TextPaint subCatTextPaint, tinyTextPaint;
 
     public float textWidth = 10;
@@ -48,6 +48,8 @@ public class StoreMap2D extends View {
     //point in canvas that's currently at the ctr of the screen
     private float xCtr, yCtr;
     private float xCameraCtr, yCameraCtr;
+
+    private float userPixelLocX, userPixelLocY, userPixelLocXInit, userPixelLocYInit, userPixelLocXRatio, userPixelLocYRatio;
 
     private ArrayList<PointF> ptsToDraw = new ArrayList<>();
 
@@ -167,6 +169,16 @@ public class StoreMap2D extends View {
 
         ssWhalley = mainActivity.getStoreModel();
         mGraph = mainActivity.getGraph();
+
+        RectF entrance = ssWhalley.getElementByName("entrance").getRect();
+
+        //set start pixel loc of user location
+        userPixelLocX = entrance.centerX();
+        userPixelLocY = entrance.top;
+        userPixelLocYInit = userPixelLocY;
+        userPixelLocXInit = userPixelLocX;
+        userPixelLocXRatio = Constants.mapFrameRectWidth / Constants.SS_WHALLEY_ACTUAL_WIDTH;
+        userPixelLocYRatio = Constants.mapFrameRectHeight / Constants.SS_WHALLEY_ACTUAL_HT;
 
         d = ResourcesCompat.getDrawable(getResources(), R.drawable.svg_floor, null);
         assert d != null;
@@ -352,6 +364,9 @@ public class StoreMap2D extends View {
         //init the dot paint
         dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         dotPaint.setColor(Color.RED);
+
+        userLocPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        userLocPaint.setColor(Color.BLUE);
 
         subCatTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         subCatTextPaint.setTextScaleX(Constants.subCatTextXScale); //this seems to stop letters from overlapping
@@ -901,6 +916,8 @@ public class StoreMap2D extends View {
         //draw the grid
         drawGrid(canvas);
 
+        drawUserLocDot(canvas);
+
         //return canvas to state it was in upon entering onDraw()
         canvas.restore();
     }
@@ -951,6 +968,40 @@ public class StoreMap2D extends View {
             colorNode(mGraph.getData().get(i), nodeColor.RED, canvas);
         }
     }
+
+    public void calibrateUserPixelLocToWaypointCell() {
+        //get the full path from this node to the next
+        ArrayList<Integer> path = fetchBacktrackedPathBetweenNodes(finalNodeOrdering.get(pathIdx), finalNodeOrdering.get(pathIdx + 1));
+
+        //get the last node
+        Integer lastNode = path.get(path.size() - 1);
+
+        RectF rect = mGraph.getData().get(lastNode).getCellBounds();
+
+        float x = rect.centerX();
+        float y = rect.centerY();
+
+        setUserPixelLocInit(x, y);
+        mainActivity.mLocationService.resetPos();
+    }
+
+    public void drawUserLocDot(Canvas canvas) {
+        float xPos = (float)CurrentUserPosition.getCurrXPos();
+        float yPos = (float)CurrentUserPosition.getCurrYPos();
+
+        //scale the actual meter vals down to pixel vals
+        float scaledXPos = xPos * userPixelLocXRatio;
+        float scaledYPos = yPos * userPixelLocYRatio;
+
+        canvas.drawCircle(userPixelLocXInit + scaledXPos, userPixelLocYInit - scaledYPos, 7, userLocPaint);
+    }
+
+    public void setUserPixelLocInit(float x, float y) {
+        userPixelLocXInit = x;
+        userPixelLocYInit = y;
+    }
+
+
 
     public void setPathIdx(int newIdx) {
         this.pathIdx = newIdx;
@@ -1022,6 +1073,10 @@ public class StoreMap2D extends View {
         super.onSizeChanged((int) ww, (int) hh, oldw, oldh);
     }
 
+    public void processTap(float x, float y) {
+        Log.i(TAG, "Tap registered at x " + x + ", and y " + y);
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
         zoomAndPan(ev);
@@ -1030,12 +1085,20 @@ public class StoreMap2D extends View {
         return true;
     }
 
+    long timeDown = 0;
+    float touchX = 0;
+    float touchY = 0;
+
     //handle all touch events on the store map
     void zoomAndPan(MotionEvent event) {
         //we maintain a state machine for the pan and zoom.
         switch (event.getAction() & MotionEvent.ACTION_MASK) {
             //when first finger goes down, get first point (that finger is touching)
             case MotionEvent.ACTION_DOWN:
+                timeDown = System.currentTimeMillis();
+                touchX = event.getX();
+                touchY = event.getY();
+
                 //save the Canvas' current transformation matrix
                 savedMatrix.set(matrix);
 
@@ -1064,7 +1127,13 @@ public class StoreMap2D extends View {
 
             //when both fingers are released, do nothing
             case MotionEvent.ACTION_UP:
-                //skip, proceed to next case (so that this functions like an OR statement)
+                long tapDur = event.getEventTime() - timeDown;
+
+                if (tapDur < Constants.tapDurThresh && Utils.euclideanDist(event.getX(), event.getY(), touchX, touchY) < Constants.tapDistThresh) {
+                    processTap(event.getX(), event.getY());
+                }
+
+                //no break, proceed to next case (so that this functions like an OR statement)
             case MotionEvent.ACTION_POINTER_UP:
                 //state returns to still
                 currState = zoomPanState.STILL;

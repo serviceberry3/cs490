@@ -5,8 +5,11 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.util.Log;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 
 public class Utils {
     public static final String TAG = "Utils";
@@ -65,5 +68,43 @@ public class Utils {
         }
 
         return ret;
+    }
+
+    public static float fixNanOrInfinite(float value)
+    {
+        //change NaN or infinity to 0
+        if (Float.isNaN(value) || Float.isInfinite(value)) return 0;
+        return value;
+    }
+
+    public static float rangeValue(float value, float min, float max)
+    {
+        //apply boundaries to a given value
+        if (value > max) return max;
+
+        //otherwise if val less than min return min, otherwise return value
+        return Math.max(value, min);
+    }
+
+    public static void lowPassFilter(float[] input, float[] output, float alpha)
+    {
+        //iterate through each element of the input float array
+        for (int i = 0; i < input.length; i++) {
+            //set that slot in the output array to its previous value plus alphaConstant * (change in the value since last reading)
+            output[i] = output[i] + (alpha * (input[i] - output[i])); //we only allow the acceleration reading to change by alpha of its actual change
+
+            //a second way to implement
+            //output[i] = input[i] - (alpha * output[i] + (1-alpha) * input[i]);
+        }
+    }
+
+    public static float euclideanDist(float x1, float y1, float x2, float y2) {
+        return (float)Math.sqrt(Math.pow(x1-x2, 2) + Math.pow(y1-y2, 2));
+    }
+
+    public static String getDateTime() {
+        DateFormat dateFormat = new SimpleDateFormat("MMddyyHHmmss");
+        Date date = new Date();
+        return dateFormat.format(date);
     }
 }

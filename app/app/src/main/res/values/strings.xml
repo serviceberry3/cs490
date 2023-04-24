@@ -3,6 +3,7 @@
     <string name="action_map">Map</string>
     <string name="action_view_list">Shopping List</string>
     <string name="action_db_browse">Browse Products</string>
+    <string name="action_go_calib">Calibration</string>
 
 
     <string name="action_show_prod_on_map">Show on map</string>
@@ -25,4 +26,8 @@
     <string name="finish_path_button">Finish</string>
 
     <string name="proceed_to">Proceed to\u0020</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+
+    <string name="calib_fragment_label">Calibration</string>
 </resources>

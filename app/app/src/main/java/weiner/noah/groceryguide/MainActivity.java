@@ -1,9 +1,11 @@
 package weiner.noah.groceryguide;
 
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.graphics.Matrix;
 import android.graphics.Path;
 import android.graphics.RectF;
@@ -11,6 +13,7 @@ import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
@@ -20,6 +23,7 @@ import androidx.navigation.ui.NavigationUI;
 
 import weiner.noah.groceryguide.databinding.ActivityMainBinding;
 
+import android.os.IBinder;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -42,6 +46,10 @@ public class MainActivity extends AppCompatActivity {
     NavHostFragment navHostFragment;
     NavController navController;
 
+    //the user positioning background Service
+    LocationService mLocationService;
+    boolean mBound = false;
+
     //matrix to use for rotating points, etc.
     Matrix canvasMatrixTemp = new Matrix();
 
@@ -49,20 +57,57 @@ public class MainActivity extends AppCompatActivity {
     List<ShoppingList> shoppingLists = new ArrayList<ShoppingList>();
 
     private FragmentManager fragmentManager;
+    private MapFragment mapFragment;
 
-    private Intent inertialLocIntent;
+    private Intent indoorLocIntent;
     private DataReceiver dataReceiver;
 
 
     private String TAG = "MainActivity";
 
+    /** Defines callbacks for service binding, passed to bindService(). */
+    private ServiceConnection connection = new ServiceConnection() {
+
+        @Override
+        public void onServiceConnected(ComponentName className, IBinder service) {
+            // We've bound to LocalService, cast the IBinder and get LocalService instance.
+            LocationService.LocalBinder binder = (LocationService.LocalBinder) service;
+
+            //get the instance of LocationService
+            mLocationService = binder.getService();
+            mBound = true;
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName arg0) {
+            mBound = false;
+        }
+    };
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        startIndoorLoc();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+
+        Log.i(TAG, "onStop() called!!");
+
+        //unbind LocationService
+        unbindService(connection);
+        mBound = false;
+    }
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        fragmentManager = getSupportFragmentManager();
-
         super.onCreate(savedInstanceState);
 
-        inertialLocIntent = new Intent(this, LocationService.class);
+        indoorLocIntent = new Intent(this, LocationService.class);
         initReceiver();
 
         //getSupportActionBar().setTitle();
@@ -91,6 +136,12 @@ public class MainActivity extends AppCompatActivity {
         createGraph();
 
         startIndoorLoc();
+
+        fragmentManager = getSupportFragmentManager();
+
+        navHostFragment = (NavHostFragment) fragmentManager.findFragmentById(R.id.nav_host_fragment_content_main);
+        assert navHostFragment != null;
+        mapFragment = (MapFragment) navHostFragment.getChildFragmentManager().getFragments().get(0);
     }
 
     @Override
@@ -111,6 +162,9 @@ public class MainActivity extends AppCompatActivity {
             case R.id.ShoppingListFragment:
                 NavWrapper.navigateSafe(navController, R.id.action_ShoppingListFragment_to_MapFragment, null);
                 break;
+            case R.id.CalibrationFragment:
+                NavWrapper.navigateSafe(navController, R.id.action_CalibrationFragment_to_MapFragment, null);
+                break;
         }
     }
 
@@ -125,6 +179,24 @@ public class MainActivity extends AppCompatActivity {
                 break;
             case R.id.ShoppingListFragment:
                 NavWrapper.navigateSafe(navController, R.id.action_ShoppingListFragment_to_BrowseProductsFragment, null);
+                break;
+        }
+    }
+
+    public void navToCalib() {
+        //get currently active fragment (the current destination)
+        int currFrag = Objects.requireNonNull(navController.getCurrentDestination()).getId();
+
+        switch (currFrag) {
+            case R.id.MapFragment:
+                //safely navigate (ie if we're already in the MapFragment, this will fail gracefully)
+                NavWrapper.navigateSafe(navController, R.id.action_MapFragment_to_CalibrationFragment, null);
+                break;
+            case R.id.ShoppingListFragment:
+                NavWrapper.navigateSafe(navController, R.id.action_ShoppingListFragment_to_CalibrationFragment, null);
+                break;
+            case R.id.BrowseProductsFragment:
+                NavWrapper.navigateSafe(navController, R.id.action_BrowseProductsFragment_to_CalibrationFragment, null);
                 break;
         }
     }
@@ -173,6 +245,9 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             case R.id.action_view_list:
                 navToList();
+                return true;
+            case R.id.action_go_calib:
+                navToCalib();
                 return true;
         }
 
@@ -385,17 +460,20 @@ public class MainActivity extends AppCompatActivity {
         Log.i(TAG, "startIndoorLoc() called!");
 
         //CurrentUserPosition probably won't hold any lat/lon yet
-        UserPosition userPos = new UserPosition(CurrentUserPosition.getCurrLat(), CurrentUserPosition.getCurrLon());
-        inertialLocIntent.putExtra("init_pos", userPos);
+        UserPosition userPos = new UserPosition(CurrentUserPosition.getCurrXPos(), CurrentUserPosition.getCurrYPos());
+        indoorLocIntent.putExtra("init_pos", userPos);
 
-        startService(inertialLocIntent);
+        //startService(inertialLocIntent);
+
+        //bind to the LocationService
+        bindService(indoorLocIntent, connection, Context.BIND_AUTO_CREATE);
     }
 
     /**
      * Close indoor positioning module.
      */
     private void stopIndoorLoc() {
-        stopService(inertialLocIntent);  // Close indoor positioning module
+        stopService(indoorLocIntent);  // Close indoor positioning module
     }
 
     /**
@@ -423,38 +501,72 @@ public class MainActivity extends AppCompatActivity {
     /**
      * The broadcast receiver. This receive receives broadcasts of user's location.
      */
-    class DataReceiver extends BroadcastReceiver {
-        double lat, lon;
+    private class DataReceiver extends BroadcastReceiver {
+        double xPos = 0, yPos = 0;
+        Float xAccel, yAccel, zAccel, azim, xVel, yVel, zVel;
 
         @Override
         public void onReceive(Context context, final Intent intent) {
+            Log.i(TAG, "onReceive() running in DataReceiver!!");
             String action = intent.getAction();
 
+            List<Fragment> frags = navHostFragment.getChildFragmentManager().getFragments();
+            for (Fragment frag : frags) {
+                if (frag.getId() == R.id.MapFragment) {
+                    mapFragment = (MapFragment) frag;
+                    break;
+                }
+            }
+
             if ("locate".equals(Objects.requireNonNull(action))) {
+                Log.i(TAG, "locate is the action!!!");
                 //get broadcasted user position and update CurrentUserPosition
                 UserPosition userPosition = (UserPosition) intent.getSerializableExtra("pos_data");
-                CurrentUserPosition.setPos(userPosition);
+                if (userPosition != null) {
+                    Log.i(TAG, "DataReceiver: setting current user pos!!");
+                    CurrentUserPosition.setPos(userPosition);
 
-                lat = userPosition.getLat();
-                lon = userPosition.getLon();
+                    xPos = userPosition.getXPos();
+                    yPos = userPosition.getYPos();
+                }
 
-                Log.i(TAG, "DataReceive got intent location: lat is " + lat + ", lon is " + lon);
+                //if mapfragment is currently displayed
+                if (mapFragment.getBinding() != null) {
+                    mapFragment.getBinding().posX.setText("x pos (m): " + String.format("%.2f", xPos));
+                    mapFragment.getBinding().posY.setText("y pos (m): " + String.format("%.2f", yPos));
+                    Log.i(TAG, "DataReceive got intent location: xPos is " + xPos + ", yPos is " + yPos);
 
-                GeoPoint geoPoint = new GeoPoint(lat, lon);
-                mDLOverlay.setLocation(geoPoint);
+                    //trigger redraw of storemap
+                    mapFragment.getBinding().storeMap.invalidate();
+                }
+                else {
+                    Log.i(TAG, "mapfragment getbinding is null!!!");
+                }
+            }
 
-                /*
-                if (isFirstLocate) {
-                    mController.animateTo(geoPoint);
-                    isFirstLocate = false;
-                }*/
+            else if ("sensors".equals(Objects.requireNonNull(action))) {
+                if (mapFragment.getBinding() != null ) {
+                    xAccel = (Float) intent.getSerializableExtra("accel_x");
+                    yAccel = (Float) intent.getSerializableExtra("accel_y");
+                    zAccel = (Float) intent.getSerializableExtra("accel_z");
+                    xVel = (Float) intent.getSerializableExtra("vel_x");
+                    yVel = (Float) intent.getSerializableExtra("vel_y");
+                    zVel = (Float) intent.getSerializableExtra("vel_z");
+                    azim = (Float) intent.getSerializableExtra("azim");
 
-                //if this is the first time we're receiving a broadcast of pos_data, send back the current user pos as the initial pos
-                if (isInitIndoor) {
-                    isInitIndoor = false;
-
-                    inertialLocIntent.putExtra("init_pos", userPosition);
-                    startService(inertialLocIntent);
+                    if (azim != null) {
+                        mapFragment.getBinding().azim.setText("azimuth (deg): " + String.format("%.2f", azim));
+                    }
+                    if (xAccel != null && yAccel != null && zAccel != null) {
+                        mapFragment.getBinding().accelX.setText("x accel: " + String.format("%.2f", xAccel));
+                        mapFragment.getBinding().accelY.setText("y accel: " + String.format("%.2f", yAccel));
+                        mapFragment.getBinding().accelZ.setText("z accel: " + String.format("%.2f", zAccel));
+                    }
+                    if (xVel != null && yVel != null && zVel != null) {
+                        mapFragment.getBinding().velX.setText("x vel: " + String.format("%.2f", xVel));
+                        mapFragment.getBinding().velY.setText("y vel: " + String.format("%.2f", yVel));
+                        mapFragment.getBinding().velZ.setText("z vel: " + String.format("%.2f", zVel));
+                    }
                 }
             }
         }

@@ -17,7 +17,11 @@
         <action
             android:id="@+id/action_MapFragment_to_ShoppingListFragment"
             app:destination="@id/ShoppingListFragment" />
+        <action
+            android:id="@+id/action_MapFragment_to_CalibrationFragment"
+            app:destination="@id/CalibrationFragment" />
     </fragment>
+
     <fragment
         android:id="@+id/BrowseProductsFragment"
         android:name="weiner.noah.groceryguide.BrowseProductsFragment"
@@ -30,7 +34,11 @@
         <action
             android:id="@+id/action_BrowseProductsFragment_to_ShoppingListFragment"
             app:destination="@id/ShoppingListFragment" />
+        <action
+            android:id="@+id/action_BrowseProductsFragment_to_CalibrationFragment"
+            app:destination="@id/CalibrationFragment" />
     </fragment>
+
     <fragment
         android:id="@+id/ShoppingListFragment"
         android:name="weiner.noah.groceryguide.ShoppingListFragment"
@@ -43,5 +51,26 @@
         <action
             android:id="@+id/action_ShoppingListFragment_to_BrowseProductsFragment"
             app:destination="@id/BrowseProductsFragment" />
+        <action
+            android:id="@+id/action_ShoppingListFragment_to_CalibrationFragment"
+            app:destination="@id/CalibrationFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/CalibrationFragment"
+        android:name="weiner.noah.groceryguide.CalibrationFragment"
+        android:label="@string/calib_fragment_label"
+        tools:layout="@layout/fragment_calibration">
+
+        <action
+            android:id="@+id/action_CalibrationFragment_to_MapFragment"
+            app:destination="@id/MapFragment" />
+        <action
+            android:id="@+id/action_CalibrationFragment_to_BrowseProductsFragment"
+            app:destination="@id/BrowseProductsFragment" />
+        <action
+            android:id="@+id/action_CalibrationFragment_to_ShoppingListFragment"
+            app:destination="@id/ShoppingListFragment"
+            />
     </fragment>
 </navigation>

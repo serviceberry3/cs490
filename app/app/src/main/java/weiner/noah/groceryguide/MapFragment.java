@@ -8,6 +8,7 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -32,6 +33,8 @@ public class MapFragment extends Fragment {
     private MainActivity mainActivity;
 
     private ShoppingList shoppingList;
+
+    private TextView xAccel, yAccel, zAccel, xVel, yVel, zVel;
 
     private int listItemIndex = 0;
 
@@ -99,46 +102,62 @@ public class MapFragment extends Fragment {
         //get the binding for fragment_first and its root view to display
         binding = FragmentMapBinding.inflate(inflater, container, false);
 
+        xAccel = binding.accelX;
+        yAccel = binding.accelY;
+        zAccel = binding.accelZ;
+        xVel = binding.velX;
+        yVel = binding.velY;
+        zVel = binding.velZ;
+
         //when next button clicked, increment the path index and cause the map to be redrawn so that next path is drawn
         //also change the textview to reflect next shopping list item
-        binding.nextPathButton.setOnClickListener(new View.OnClickListener() {
+        binding.nextPathButton.setOnClickListener(view -> {
+            //every time the user departs from a waypoint, clear LocationService's position reading to 0, and set the waypoint cell as new initial pixel location of user
+            mainActivity.mLocationService.resetPos();
+            binding.storeMap.calibrateUserPixelLocToWaypointCell();
+
+
+            //if the path index is equal to size of route node list - 2, we know we just showed the last path, so the user must have clicked finish
+            //clear the path index and set the button view to invisible
+            if (binding.storeMap.getPathIdx() == binding.storeMap.getFinalNodeOrdering().size() - 2) {
+                binding.storeMap.setPathIdx(-1); //clear any path drawings
+                binding.nextPathButton.setVisibility(View.INVISIBLE);
+
+                //reset the storemap view so it takes up entire window
+                RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) binding.storeMap.getLayoutParams();
+                params.height = RelativeLayout.LayoutParams.MATCH_PARENT;
+                binding.storeMap.setLayoutParams(params);
+
+                //set textview to invisible
+                binding.pathDescription.setVisibility(View.INVISIBLE);
+            }
+
+            //if the path index is equal to size of the route node list - 3, we know we are about to show the last path, so set button text to finish
+            else if (binding.storeMap.getPathIdx() == binding.storeMap.getFinalNodeOrdering().size() - 3) { //size-3 must be >=0, since if doing navigation will have at least one item in shopping list, plus entrance and checkout nodes
+                binding.nextPathButton.setText(R.string.finish_path_button);
+
+                //still increment path idx, trigger redraw of store map
+                binding.storeMap.setPathIdx(binding.storeMap.getPathIdx() + 1);
+                binding.storeMap.invalidate();
+
+                binding.pathDescription.setText(getResources().getString(R.string.proceed_to) + "exit");
+                listItemIndex++;
+            }
+
+            //increment the path index so that the next path is drawn, and trigger redraw of the store map
+            else {
+                binding.storeMap.setPathIdx(binding.storeMap.getPathIdx() + 1);
+                binding.storeMap.invalidate(); //trigger store map redraw
+
+                binding.pathDescription.setText(getResources().getString(R.string.proceed_to) + shoppingList.getProdList().get(listItemIndex).getName());
+                listItemIndex++;
+            }
+        });
+
+        binding.clearPosButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                //if the path index is equal to size of route node list - 2, we know we just showed the last path, so the user must have clicked finish
-                //clear the path index and set the button view to invisible
-                if (binding.storeMap.getPathIdx() == binding.storeMap.getFinalNodeOrdering().size() - 2) {
-                    binding.storeMap.setPathIdx(-1); //clear any path drawings
-                    binding.nextPathButton.setVisibility(View.INVISIBLE);
-
-                    //reset the storemap view so it takes up entire window
-                    RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) binding.storeMap.getLayoutParams();
-                    params.height = RelativeLayout.LayoutParams.MATCH_PARENT;
-                    binding.storeMap.setLayoutParams(params);
-
-                    //set textview to invisible
-                    binding.pathDescription.setVisibility(View.INVISIBLE);
-                }
-
-                //if the path index is equal to size of the route node list - 3, we know we are about to show the last path, so set button text to finish
-                else if (binding.storeMap.getPathIdx() == binding.storeMap.getFinalNodeOrdering().size() - 3) { //size-3 must be >=0, since if doing navigation will have at least one item in shopping list, plus entrance and checkout nodes
-                    binding.nextPathButton.setText(R.string.finish_path_button);
-
-                    //still increment path idx, trigger redraw of store map
-                    binding.storeMap.setPathIdx(binding.storeMap.getPathIdx() + 1);
-                    binding.storeMap.invalidate();
-
-                    binding.pathDescription.setText(getResources().getString(R.string.proceed_to) + "exit");
-                    listItemIndex++;
-                }
-
-                //increment the path index so that the next path is drawn, and trigger redraw of the store map
-                else {
-                    binding.storeMap.setPathIdx(binding.storeMap.getPathIdx() + 1);
-                    binding.storeMap.invalidate(); //trigger store map redraw
-
-                    binding.pathDescription.setText(getResources().getString(R.string.proceed_to) + shoppingList.getProdList().get(listItemIndex).getName());
-                    listItemIndex++;
-                }
+                mainActivity.mLocationService.resetPos();
             }
         });
 

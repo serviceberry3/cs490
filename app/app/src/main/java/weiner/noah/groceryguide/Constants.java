@@ -66,5 +66,28 @@ public class Constants {
     public static final float zoneRectXPad = 1;
 
 
+    //FOR LOCATIONSERVICE
+    public static final float NANOSEC_TO_SEC = 1.0f / 1000000000.0f;
+    public static final float MAX_ACC = 20.0f;
+
+    public static final float IN_MOTION_STD_THRESH = 0.8f;
+
+    //parameter for low-pass filter
+    public static final float LOW_PASS_ALPHA = 0.95f;
+
+    //adjustable parameter that scales up velocity when integrating position
+    public static final int VELOCITY_AMPL_DEFAULT = 1;
+
+    public static final float VELOCITY_FRICTION_DEFAULT = 0.0f;
+    public static final float POSITION_FRICTION_DEFAULT = 0.0f;
+
+    //approximate heading when facing directly towards the main entrance of Stop & Shop
+    public static final float SS_WHALLEY_HEADING = 116f;
+
+    public static final float SS_WHALLEY_ACTUAL_WIDTH = 82f; //in meters
+    public static final float SS_WHALLEY_ACTUAL_HT = 49f; //in meters
+
+    public static final float tapDurThresh = 50;
+    public static final float tapDistThresh = 20;
 
 }
