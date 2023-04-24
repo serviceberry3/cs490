@@ -7,14 +7,15 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PointF;
-import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.text.StaticLayout;
 import android.text.TextPaint;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.util.Pair;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -84,8 +85,9 @@ public class StoreMap2D extends View {
     private DBManager dbManager;
 
     private Graph mGraph;
+    private Graph nodesToHitGraph;
 
-    //labels that have been drawn, along with their x,y coordinates
+    //labels that have been drawn, along w ith their x,y coordinates
     private final ArrayList<SubcatLabel> subCatLabels = new ArrayList<SubcatLabel>();
     private ArrayList<SubcatLabel> drawnLabelsSaved;
 
@@ -1215,7 +1217,10 @@ public class StoreMap2D extends View {
             }
         }
 
+        //append start and end nodes to the end of the nodesToHit list
         addStartAndEndNodes();
+
+        //start shortest path computations
         computePath();
     }
 
@@ -1255,22 +1260,17 @@ public class StoreMap2D extends View {
     }
 
 
-    class HeuristicComparator implements Comparator<Integer> {
-        public HeuristicComparator() {
+    class NodeComparator implements Comparator<Integer> {
+        Graph graph;
+        public NodeComparator(Graph g) {
+            this.graph = g;
         }
         @Override
         public int compare(Integer n1, Integer n2) {
-            ArrayList<Node> data = mGraph.getData();
+            ArrayList<Node> data = graph.getData();
 
+            //**lower values have higher priority
             return (int)(data.get(n1).getPriority() - data.get(n2).getPriority());
-
-            /*
-            if (data.get(n1).getPriority() < data.get(n2).getPriority())
-                return 1;
-            else if (data.get(n1).getPriority() > data.get(n2).getPriority())
-                return -1;
-
-            return 0;*/
         }
     }
 
@@ -1278,22 +1278,22 @@ public class StoreMap2D extends View {
     public void computePath() {
         //nodesToHit now contains ID nums of all nodes we need to visit
 
-        /*
-        PSEUDOCODE: first, find shortest path between each pair of nodes in nodesToHit
-         */
 
         shortestPaths.clear();
 
-        PriorityQueue<Integer> frontier = new PriorityQueue<Integer>(new HeuristicComparator());
+        PriorityQueue<Integer> frontier = new PriorityQueue<Integer>(new NodeComparator(mGraph));
         Integer currNode;
-        ArrayList<Integer> neighbors;
+        ArrayList<Pair<Integer, Integer>> neighbors;
         ShortestPath thisPath;
         float prio, updatedCost;
         ArrayList<Node> data = mGraph.getData();
 
-        //find all unique pairs of nodes
+        //FIRST: find shortest path between each pair of nodes in nodesToHit
+
+        //iterate over all unique pairs of nodes in nodesToHit list
         for (int i = 0; i < nodesToHit.size(); i++) {
             for (int j = i + 1; j < nodesToHit.size(); j++) {
+                //"frontier" is the priority queue representing the expanding list of nodes being explored for the shortest path
                 frontier.clear();
 
                 Integer srcNode = nodesToHit.get(i);
@@ -1329,31 +1329,34 @@ public class StoreMap2D extends View {
                     neighbors = mGraph.getAdjacencyLists().get(currNode);
 
                     //iterate through this node's neighbors
-                    for (Integer nextNodeCandidate : neighbors) {
+                    for (Pair<Integer, Integer> nextNodeCandidate : neighbors) {
                         updatedCost = thisPath.getDistSoFar().get(currNode) + Constants.cellHeight;
 
                         //if we haven't already visited this node, OR if we have visited this node but now have found some shorter path to it
                         if (!thisPath.getCameFrom().containsKey(nextNodeCandidate) || updatedCost < thisPath.getDistSoFar().get(nextNodeCandidate)) {
-                            thisPath.updateDistSoFarEntry(nextNodeCandidate, updatedCost);
+                            thisPath.updateDistSoFarEntry(nextNodeCandidate.first, updatedCost);
 
                             //in order to favor nodes that are closer to the destination node, compute Manhattan dist between this node and the dst node and use that
                             //as priority value in the queue
-                            prio = updatedCost + heuristicManhattanDist(data.get(dstNode), data.get(nextNodeCandidate));
-                            data.get(nextNodeCandidate).setPriority(prio);
+                            prio = updatedCost + heuristicManhattanDist(data.get(dstNode), data.get(nextNodeCandidate.first));
+                            data.get(nextNodeCandidate.first).setPriority(prio);
 
                             /*Log.i(TAG, "Adding node " + nextNodeCandidate + " to queue with priority: cost to get here is " + updatedCost + " and manhatt dist to dest is " + heuristicManhattanDist(data.get(dstNode), data.get(nextNodeCandidate))
                                     + " which makes total " + prio);*/
                             //add the node to the queue with its priority
-                            frontier.add(nextNodeCandidate);
+                            frontier.add(nextNodeCandidate.first);
 
-                            thisPath.addCameFromEntry(nextNodeCandidate, currNode);
+                            thisPath.addCameFromEntry(nextNodeCandidate.first, currNode);
                         }
                     }
                 }
             }
         }
 
+        //reconstruct the shortest paths and save them
         storeBackTrackedShortestPaths();
+
+        //compute the final route using one of two methods
         computeRouteOrder();
     }
 
@@ -1394,6 +1397,77 @@ public class StoreMap2D extends View {
         Log.i(TAG, "fetchBacktrackedPathBetweenNodes returning null!");
         //shortest path between these nodes was not computed
         return null;
+    }
+
+    public void constructCompleteGraphOfShortestDists() {
+        int dist;
+        int currId = 0;
+
+        //for fast indexing into the graph data array, still create a node for every single cell
+        for (int top = 0; top < Constants.mapFrameRectHeight; top += Constants.cellHeight) {
+            //iterate for all cols
+            for (int left = 0; left < Constants.mapFrameRectWidth; left += Constants.cellWidth) {
+                if (nodesToHit.contains(currId)) {
+                    nodesToHitGraph.addNode(new Node(currId, mGraph.getData().get(currId).getCellBounds()));
+                }
+                else {
+                    nodesToHitGraph.addNode(new Node(currId, null));
+                }
+
+                //increment node ID no matter what.
+                currId++;
+            }
+        }
+
+
+        //iterate over all unique pairs of nodes in nodesToHit list
+        for (int i = 0; i < nodesToHit.size(); i++) {
+            for (int j = i + 1; j < nodesToHit.size(); j++) {
+                Integer n1 = nodesToHit.get(i);
+                Integer n2 = nodesToHit.get(j);
+
+                //get shortest dist between these grid cells
+                dist = (int)fetchShortestDistBetweenNodes(n1, n2);
+
+                //add edge to the graph
+                nodesToHitGraph.addEdge(n1, n2, dist);
+            }
+        }
+    }
+
+    void primsAlgo(MinSpanningTree mst, Graph g) {
+        PriorityQueue<Integer> q = new PriorityQueue<Integer>(new NodeComparator(nodesToHitGraph));
+
+        //get source node for the MST
+        Node src = g.getData().get(mst.getSrcNode());
+        Integer currNode;
+        ArrayList<Pair<Integer, Integer>> neighbors;
+
+        Node n;
+
+        if (src != null) {
+            src.setPriority(0);
+
+            //add all vertices to the prio queue
+            q.addAll(nodesToHit);
+
+            while (!q.isEmpty()) {
+                currNode = q.remove();
+
+                neighbors = g.getAdjacencyLists().get(currNode);
+                for (Pair<Integer, Integer> nextNodeCandidate : neighbors) {
+                    n = g.getData().get(nextNodeCandidate.first);
+
+                    //if we haven't explored this vertex yet, AND distance from currNode to this vertex is less than this vertex's current priority
+                    if (q.contains(nextNodeCandidate.first) && nextNodeCandidate.second < n.getPriority()) {
+                        //update this vertex's priority with the distance from current node to it
+                        n.setPriority(nextNodeCandidate.second);
+
+                        mst.addCameFromEntry(nextNodeCandidate.first, currNode);
+                    }
+                }
+            }
+        }
     }
 
     public void computeRouteOrder() {
@@ -1447,6 +1521,27 @@ public class StoreMap2D extends View {
 
             //Log.i(TAG, out.toString());
             //Log.i(TAG, "finalNodeOrdering is " + finalNodeOrdering);
+        }
+
+        //if have more than 12 nodes, computing all permutations will take too long
+        //we can use the Minimum Spanning Tree approximation for TSP
+        //since our subgraph will always satisfy triangle inequality (all edges on the subgraph are shortest paths between nodes),
+        //it can be shown that the total distance of the route output by the approximation algo is never more than twice the cost of best possible output for TSP
+        else {
+            //remove end node
+            nodesToHit.remove(nodesToHit.size() - 1);
+
+            nodesToHitGraph = new Graph();
+
+            //construct the subgraph
+            constructCompleteGraphOfShortestDists();
+
+            //now run Prim's on subgraph, using start node as the root
+            Integer startNode = nodesToHit.get(nodesToHit.size() - 1);
+
+            MinSpanningTree mst = new MinSpanningTree(startNode);
+
+            primsAlgo(mst, nodesToHitGraph);
         }
     }
 }

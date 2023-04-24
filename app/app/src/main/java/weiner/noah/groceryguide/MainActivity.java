@@ -446,7 +446,7 @@ public class MainActivity extends AppCompatActivity {
 
                     for (Integer id : possibleNeighbors) {
                         if (mGraph.containsNode(id)) {
-                            mGraph.addEdge(currId, id);
+                            mGraph.addEdge(currId, id, (int) Constants.cellHeight);
                         }
                     }
                 }

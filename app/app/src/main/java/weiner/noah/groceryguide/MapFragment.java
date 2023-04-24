@@ -34,7 +34,7 @@ public class MapFragment extends Fragment {
 
     private ShoppingList shoppingList;
 
-    private TextView xAccel, yAccel, zAccel, xVel, yVel, zVel;
+    private TextView xAccel, yAccel, zAccel, xVel, yVel, zVel, xPos, yPos;
 
     private int listItemIndex = 0;
 
@@ -108,6 +108,12 @@ public class MapFragment extends Fragment {
         xVel = binding.velX;
         yVel = binding.velY;
         zVel = binding.velZ;
+        xPos = binding.posX;
+        yPos = binding.posY;
+
+        //display initial user position
+        xPos.setText("x pos (m): " + String.format("%.2f", CurrentUserPosition.getCurrXPos()));
+        yPos.setText("y pos (m): " + String.format("%.2f", CurrentUserPosition.getCurrYPos()));
 
         //when next button clicked, increment the path index and cause the map to be redrawn so that next path is drawn
         //also change the textview to reflect next shopping list item
