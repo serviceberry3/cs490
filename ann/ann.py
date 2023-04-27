@@ -17,7 +17,12 @@ from loc import *
 
 
 
-VIDS_DIR = "/home/nodog/docs/files/YaleSenior/cs490/cs490/data_prep/vids"
+VIDS_DIR = "/home/nodog/docs/files/YaleSenior/cs490/cs490/data_prep/vids/0424/"
+STORE_ELEMENTS_LIST = ["entrance", "entrance_island", "exit", "checkout", "old_produce_island", "chips_wall_of_value", "produce_island_front_west", "produce_island_front_east", "floral_island", "produce_island_1", "produce_island_2", 
+"produce_island_3", "produce_island_4", "produce_island_5", "produce_island_6", "produce_wall_west", "produce_wall_east", "meat_island_north", "meat_island_south", "deli", "dips_wall", "cakes_fridge_wall", "bread_wall", "fish_wall", "fish_fridge_wall", 
+"wall_meat_packaged", "wall_dairy_yog_milk", "wall_dairy_egg_cheese", "aisle_ice_cream_frozen", "aisle_frozen_16", "aisle_frozen_16", "aisle_16_15", "aisle_15_14", "aisle_14_13", "aisle_13_12", "aisle_12_11", "aisle_11_10", "aisle_10_9", "aisle_9_8", "aisle_8_7", "aisle_7_6", 
+"aisle_6_5", "aisle_5_4", "aisle_4_3", "aisle_3_deli", "bread_island", "grabngo", "cheese_island", "breakfast", "grabngo_deli_island", "pastries_south", "pastries_north", "alcohol", "alcohol_wall_front", "donuts_wall_front"]
+DIRS = ["north", "south", "east", "west"]
 
 def absoluteFilePaths(directory):
     for dirpath, _, filenames in os.walk(directory):
@@ -25,6 +30,9 @@ def absoluteFilePaths(directory):
             #yield suspends function’s execution and sends value back to caller, but retains state to enable fxn to resume where left off. When the function resumes, it continues execution immediately after the last yield run. 
             #This allows it to produce series of values over time, rather than computing them at once and sending them back like a list.
             yield os.path.abspath(os.path.join(dirpath, f))
+
+def getFileNamesFromDir(directory):
+    return [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
 
 
 class KeyPressFilter(QObject):
@@ -47,7 +55,7 @@ class AnnotatorGUI(QWidget):
   def __init__(self, app, parent=None):
     super().__init__(parent=parent)
 
-    """Overhead management of GUI"""
+    #get directory containing the videos
     self.vids = absoluteFilePaths(VIDS_DIR)
 
     #print(cv2.EVENT_LBUTTONDBLCLK)
@@ -64,6 +72,18 @@ class AnnotatorGUI(QWidget):
     self.app = app
 
     self.selected_prod = None
+
+    #which side of store element are we annotating?
+    self.side = DIRS[0]
+
+    #which direction of travel was vid taken?
+    self.dir = DIRS[0]
+
+    #name of store element that user is labeling (ie an aisle or produce island)
+    self.store_element_name = None
+
+    #photo or video?
+    self.media_type = "photo"
 
     #self.eventFilter = KeyPressFilter(parent=self)
     #self.installEventFilter(self.eventFilter)
@@ -110,6 +130,7 @@ class AnnotatorGUI(QWidget):
       #when item is double clicked or enter is hit, highlight item in given color indicating that it's selected for the annotation
       item.setBackground(PROD_SELECT_COLOR)
 
+      #clear the original light blue selection that's used when browsing product results list
       self.output_widget.clearSelection()
 
       self.setWindowTitle(CLICK_IN_VIDEO_HELP_TXT)
@@ -156,29 +177,67 @@ class AnnotatorGUI(QWidget):
 
     textedit_bars_layout.addWidget(search_button, 0, 2)
 
-    #create gridlayout for the video dropdown area
+    #create gridlayout for the video dropdown areamport isfile, join
     vids_section = QGridLayout()
 
-    vid_dropdown_txt = QLabel("Select video:")
+    vid_dropdown_txt = QLabel("Select media:")
+
     #dropdown menu to select which video to play
     vids_dropdown = QComboBox()
-    vids_dropdown.addItems(absoluteFilePaths(VIDS_DIR))
+    #vids_dropdown.addItems(absoluteFilePaths(VIDS_DIR))
+    vids_dropdown.addItems(getFileNamesFromDir(VIDS_DIR))
     vids_dropdown.currentTextChanged.connect(self.vid_text_changed)
+
+    media_type_dropdown_txt = QLabel("       Type:")
+    media_type_dropdown = QComboBox()
+
+    media_type_dropdown.addItems(["photo", "video"])
+    media_type_dropdown.currentTextChanged.connect(self.media_type_text_changed)
+
+    side_dropdown_txt = QLabel("       Side:")
+    side_dropdown = QComboBox()
+
+    side_dropdown.addItems(["north", "south", "east", "west"])
+    side_dropdown.currentTextChanged.connect(self.side_text_changed)
+
+    dir_dropdown_txt = QLabel("       Dir of travel:")
+    dir_dropdown = QComboBox()
+
+    dir_dropdown.addItems(["north", "south", "east", "west"])
+    dir_dropdown.currentTextChanged.connect(self.dir_text_changed)
+
+    element_dropdown_txt = QLabel("   Store element:")
+    element_dropdown = QComboBox()
+
+    element_dropdown.addItems(STORE_ELEMENTS_LIST)
+    element_dropdown.currentTextChanged.connect(self.element_text_changed)
 
     vids_section.addWidget(vid_dropdown_txt, 0, 0)
     vids_section.addWidget(vids_dropdown, 0, 1)
+    vids_section.addWidget(media_type_dropdown_txt, 0, 2)
+    vids_section.addWidget(media_type_dropdown, 0, 3)
+    vids_section.addWidget(side_dropdown_txt, 0, 4)
+    vids_section.addWidget(side_dropdown, 0, 5)
+    vids_section.addWidget(dir_dropdown_txt, 0, 6)
+    vids_section.addWidget(dir_dropdown, 0, 7)
+    vids_section.addWidget(element_dropdown_txt, 0, 8)
+    vids_section.addWidget(element_dropdown, 0, 9)
+    
 
     #create gridlayout for the mode dropdown area
     mode_section = QGridLayout()
 
     mode_dropdown_txt = QLabel("I am labeling:")
+
     #dropdown menu to select whether to annotate using subcategory or specific product
     mode_dropdown = QComboBox()
     mode_dropdown.addItems(["subcategories (i.e. Sandwich Cookies)", "specific products"])
     mode_dropdown.currentTextChanged.connect(self.mode_text_changed)
 
+    
     mode_section.addWidget(mode_dropdown_txt, 0, 0)
     mode_section.addWidget(mode_dropdown, 0, 1)
+    mode_section.setHorizontalSpacing(-30)
 
     user_layout.addLayout(textedit_bars_layout, 0, 0)
     user_layout.addLayout(vids_section, 1, 0)
@@ -213,11 +272,22 @@ class AnnotatorGUI(QWidget):
     print("KEY PRESSED")
 
   def vid_text_changed(self, text):
-    self.vid = text
+    self.vid = VIDS_DIR + text
 
-  
   def mode_text_changed(self, mode):
     self.mode = mode
+
+  def side_text_changed(self, text):
+    self.side = text
+
+  def dir_text_changed(self, text):
+    self.dir = text
+
+  def media_type_text_changed(self, text):
+    self.media_type = text
+
+  def element_text_changed(self, text):
+    self.store_element_name = text
 
 
   #A static method doesn't receive any reference argument whether it is called by an instance of a class or by the class itself
@@ -277,48 +347,53 @@ class AnnotatorGUI(QWidget):
 
     #print("play_vid called, self.vid is", self.vid)
 
-    #save aisle num for when we're adding the annotations to the db
-    aisle = None
-
     if self.vid == None:
-      print("ERROR: self.vid is None, you need to select a video to pay")
+      print("ERROR: self.vid is None, you need to select a video or photo to annotate")
       return
 
     self.vid_shortname = os.path.basename(self.vid)
     print(self.vid_shortname[:5])
 
     #try to extract aisle number
+    '''
     if (self.vid_shortname[:5] == "aisle"):
       aisle = self.vid_shortname[5]
-      print(f"This vid is detected to be for aisle {aisle}")
+      print(f"This vid is detected to be for aisle {aisle}")'''
 
     #find which side of aisle this video is of
     #print(self.vid_shortname.split("_")[1][:-4])
-    side = 0 if self.vid_shortname.split("_")[1][:-4] == "north" else 1
-
-    #open the video using VideoCapture obj
-    cap = cv2.VideoCapture(self.vid)
-
-    if (cap.isOpened() == False): 
-      print(f"ERROR opening video file {self.vid}")
-      exit()
-
-    #get video fps
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    print(f"{fps} frames per second")
-
-    #get total num of frames
-    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    if (fps == 0.0):
-      print("ERROR: get returned 0.0 frames per second")
-      exit()
-
-    print("frame_count is", frame_count)
-    duration = frame_count / fps
-    print("Duration of video is", duration, "seconds")
+    #side = 0 if self.vid_shortname.split("_")[1][:-4] == "north" else 1
 
     framectr = 0
+    frame = None #current frame
+
+    image = None #image for photo
+
+    if self.media_type == "photo":
+      pass
+    else:
+      #open the video using VideoCapture obj
+      cap = cv2.VideoCapture(self.vid)
+
+      if (cap.isOpened() == False): 
+        print(f"ERROR opening video file {self.vid}")
+        exit()
+
+      #get video fps
+      fps = cap.get(cv2.CAP_PROP_FPS)
+      print(f"{fps} frames per second")
+
+      #get total num of frames
+      frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+      if (fps == 0.0):
+        print("ERROR: get returned 0.0 frames per second")
+        exit()
+
+      print("frame_count is", frame_count)
+      duration = frame_count / fps
+      print("Duration of video is", duration, "seconds")
+
 
     #create the cv2 window and give it name
     cv2.namedWindow(self.vid_shortname, cv2.WINDOW_NORMAL)
@@ -326,78 +401,96 @@ class AnnotatorGUI(QWidget):
     #resize window to custom size
     cv2.resizeWindow(self.vid_shortname, 500, 900)
 
-    #current frame
-    frame = None
 
+    #callback when user clicks in frame to add a label
     def label_circle(event, x, y, flags, param):
       if event == cv2.EVENT_LBUTTONDOWN:
-          cv2.circle(frame, (x, y), ANN_CIRC_RADIUS, ANN_CIRC_COLOR, 2)
+          if self.media_type == "photo":
+            cv2.circle(image, (x, y), ANN_CIRC_RADIUS, ANN_CIRC_COLOR, 2)
 
-          #show marked up img
-          cv2.imshow(self.vid_shortname, frame)
+            #show marked up img
+            cv2.imshow(self.vid_shortname, image)
 
-          #save the aisle number we know from vid
-          self.selected_prod.vid_aisle = aisle
-          self.selected_prod.side = side
+            width = image.shape[1]
 
-          #simply divide curr framenum by total num of frames to get distFromFront
-          fractional_dist_from_front_of_aisle = framectr / frame_count
+            print(f"for photo: clicked at {x} and image is {width} wide")
 
+            #assuming landscape images, just divide x val of click by width of img to get distFromStart
+            fractional_dist_from_front_of_aisle = x / width
+
+          else:
+            cv2.circle(frame, (x, y), ANN_CIRC_RADIUS, ANN_CIRC_COLOR, 2)
+
+            #show marked up img
+            cv2.imshow(self.vid_shortname, frame)
+
+            #simply divide curr framenum by total num of frames to get distFromFront
+            fractional_dist_from_front_of_aisle = framectr / frame_count
+
+          self.selected_prod.store_element_name = self.store_element_name
+          self.selected_prod.side = self.side
+          self.selected_prod.dir = self.dir
           self.selected_prod.distFromFront = fractional_dist_from_front_of_aisle
 
           #add the location annotation to the loc db
           self.selected_prod.add_to_subcat_loc_db()
           
 
-
     cv2.setMouseCallback(self.vid_shortname, label_circle)
     
-    #read frames until video is done
-    while(cap.isOpened()):
-        #read a frame
-        ret, frame = cap.read()
 
-        #make sure frame read successfully
-        if ret == True:
-            #cv2.circle(frame, (100, 100), 3, (255, 0, 0), 2)
-            #display a frame in the window
-            cv2.imshow(self.vid_shortname, frame)
+    if self.media_type == "photo":
+      image = cv2.imread(self.vid)
+      cv2.imshow(self.vid_shortname, image)
 
-            key = cv2.waitKey(1)
 
-            #can press q to quit
-            if key == ord('q'):
-              self.output_widget.setFocus()
-              break
+    else:
+      #read frames until video is done
+      while(cap.isOpened()):
+          #read a frame
+          ret, frame = cap.read()
 
-            #pause video using space key or p key
-            if key == ord('p') or key == ord(' '):
-              print("Paused at frame number %d and at time %.2f sections" % (framectr, framectr / fps))
-              cv2.setWindowTitle(self.vid_shortname, SELECT_ITEM_STR)
-              key = cv2.waitKey(-1) #wait until any key is pressed
+          #make sure frame read successfully
+          if ret == True:
+              #cv2.circle(frame, (100, 100), 3, (255, 0, 0), 2)
+              #display a frame in the window
+              cv2.imshow(self.vid_shortname, frame)
 
-              #can press q to quit while paused
+              key = cv2.waitKey(1)
+
+              #can press q to quit
               if key == ord('q'):
                 self.output_widget.setFocus()
                 break
 
-              cv2.setWindowTitle(self.vid_shortname, self.vid_shortname)
-                
+              #pause video using space key or p key
+              if key == ord('p') or key == ord(' '):
+                print("Paused at frame number %d and at time %.2f sections" % (framectr, framectr / fps))
+                cv2.setWindowTitle(self.vid_shortname, SELECT_ITEM_STR)
+                key = cv2.waitKey(-1) #wait until any key is pressed
 
-            framectr += 1
+                #can press q to quit while paused
+                if key == ord('q'):
+                  self.output_widget.setFocus()
+                  break
 
-        #something wrong opening frame, so break out of loop now
-        else: 
-            break
-    
+                cv2.setWindowTitle(self.vid_shortname, self.vid_shortname)
+                  
 
-    #release video capture obj
-    cap.release()
-    
-    #close all cv2 windows
-    cv2.destroyAllWindows()
+              framectr += 1
 
-    #QApplication.restoreOverrideCursor()
+          #something wrong opening frame, so break out of loop now
+          else: 
+              break
+      
+
+      #release video capture obj
+      cap.release()
+      
+      #close all cv2 windows
+      cv2.destroyAllWindows()
+
+      #QApplication.restoreOverrideCursor()
 
 
 if __name__ == "__main__":

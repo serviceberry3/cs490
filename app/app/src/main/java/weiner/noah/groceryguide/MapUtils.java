@@ -11,6 +11,8 @@ import androidx.navigation.NavController;
 
 import com.google.android.material.snackbar.Snackbar;
 
+import java.util.Objects;
+
 public class MapUtils {
     public static final String TAG = "MapUtils";
 
@@ -107,17 +109,18 @@ public class MapUtils {
     }
 
     //convert from subcat label bounds to the bounds of an actual map grid cell
-    public static RectF convertArbitraryRectToCell(RectF subCatRect, int side) {
+    //FIXME: needs updates after changed side to be a String
+    public static RectF convertArbitraryRectToCell(RectF subCatRect, String side) {
         float left, top, rt, bottom;
 
         //snap top to the grid line above
         top = Constants.cellHeight * (Math.floorDiv((long)subCatRect.top, (long)Constants.cellHeight));
 
         //if right (south) side
-        if (side == 0) {
+        if (Objects.equals(side, "s")) {
             left = subCatRect.left + (Constants.cellWidth * (Constants.aisleWidth / (2*Constants.cellWidth)));
         }
-        else if (side == 1) {
+        else if (Objects.equals(side, "n")) {
             left = subCatRect.right - (Constants.cellWidth * (Constants.aisleWidth / (2*Constants.cellWidth)));
         }
         else {

@@ -1,10 +1,12 @@
 CREATE TABLE IF NOT EXISTS subcat_loc(
-    subCatId INTEGER,
-    subCatName TEXT,
-    aisle INTEGER,
-    side INTEGER,
-    distFromFront FLOAT,
-    absX FLOAT,
-    absY FLOAT
+    "subCatId"	INTEGER,
+	"subCatName"	TEXT,
+	"storeElementName"	TEXT,
+	"side"	TEXT,
+	"distFromStart"	FLOAT,
+	"absX"	FLOAT,
+	"absY"	FLOAT,
+	"_id"	INTEGER PRIMARY KEY AUTOINCREMENT,
+	"dir"	TEXT
 );
 

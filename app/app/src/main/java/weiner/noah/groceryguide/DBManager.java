@@ -5,7 +5,6 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
-import android.util.Log;
 
 public class DBManager {
     private DatabaseHelper dbHelper;
@@ -50,7 +49,7 @@ public class DBManager {
                 columns = new String[] {DatabaseHelper._ID, DatabaseHelper.PROD_ID, DatabaseHelper.NAME, DatabaseHelper.SUBCAT_ID, DatabaseHelper.SUBCAT_NAME};
                 break;
             case DatabaseHelper.SUBCAT_LOC_TABLE_NAME:
-                columns = new String[] {DatabaseHelper._ID, DatabaseHelper.SUBCAT_NAME, DatabaseHelper.AISLE, DatabaseHelper.SIDE, DatabaseHelper.DIST_FROM_FRONT, DatabaseHelper.SUBCAT_ID};
+                columns = new String[] {DatabaseHelper._ID, DatabaseHelper.SUBCAT_NAME, DatabaseHelper.ELEMENT_NAME, DatabaseHelper.SIDE, DatabaseHelper.DIST_FROM_START, DatabaseHelper.SUBCAT_ID, DatabaseHelper.DIR};
                 break;
         }
 

@@ -12,8 +12,8 @@ class Product():
         #the aisle as retrieved from stop and shop's API
         self.aisle: int = aisle
 
-        #the aisle as we know it based on actual vid recorded
-        self.vid_aisle: int = None
+        #the aisle or store element as we know it based on user's actual selection
+        self.store_element_name: str = None
         self.rootCatId: int = rootCatId
         self.rootCatName: str = rootCatName
         self.subCatId: int = subCatId
@@ -24,7 +24,8 @@ class Product():
         self.absX = None
         self.absY = None
 
-        self.side = None
+        self.side: str = None
+        self.dir: str = None
 
         self.__conn = None
         self.__cursor = None
@@ -32,14 +33,14 @@ class Product():
 
     #add the subcategory to the subcategory location table in the database
     def add_to_subcat_loc_db(self):
-        print(f"Recording subcat {self.subCatName} in aisle {self.vid_aisle} on side {self.side}, at fractional dist {self.distFromFront} from front of aisle")
+        print(f"Recording subcat {self.subCatName} in element {self.store_element_name} on side {self.side}, moving direction {self.dir}, at fractional dist {self.distFromFront} from start")
 
         #connect to the sqlite db
         self.__conn = sqlite3.connect(DB_PATH)
         self.__cursor = self.__conn.cursor()
 
         #execute the prepared statement with prepared substituter values
-        self.__cursor.execute('insert into subcat_loc values (?,?,?,?,?,?,?,?)', (self.subCatId, self.subCatName, self.vid_aisle, self.side, self.distFromFront, self.absX, self.absY, None))
+        self.__cursor.execute('insert into subcat_loc values (?,?,?,?,?,?,?,?,?)', (self.subCatId, self.subCatName, self.store_element_name, self.side, self.distFromFront, self.absX, self.absY, None, self.dir))
         self.__conn.commit()
         self.__cursor.close()
 

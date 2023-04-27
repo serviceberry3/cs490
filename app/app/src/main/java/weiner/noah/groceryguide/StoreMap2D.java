@@ -7,7 +7,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
@@ -194,8 +193,13 @@ public class StoreMap2D extends View {
     private class SubcatLabel {
         PointF pt;
         String txt;
-        int id, subCatId, aisle,
-                side; //side: 0 is right/south, 1 is left/north
+        int id, subCatId;
+        String element, //which store element does this lbl belong to?
+                side; //side: north, south, east, west
+
+        String dir; //which direction was user walking when recording vid on which this subcat lbl was annotated?
+
+        float rot; //rotation for drawing
 
         //whether to actually draw this lbl on the map
         boolean show;
@@ -209,7 +213,7 @@ public class StoreMap2D extends View {
         //the bounds of the label (bounds of the StaticLayout) - left, top, right, bottom
         RectF bounds;
 
-        public SubcatLabel(PointF pt, String txt, int id, int subCatId, float ht, RectF bounds, StaticLayout layout, int aisle, int side) {
+        public SubcatLabel(PointF pt, String txt, int id, int subCatId, float ht, RectF bounds, StaticLayout layout, String element, String side, String dir, float rot) {
             this.pt = pt;
             this.txt = txt;
             this.id = id; //the regular id of the subcat label (autoincrement in the db)
@@ -217,9 +221,12 @@ public class StoreMap2D extends View {
             this.ht = ht;
             this.textLayout = layout;
             this.show = true;
-            this.aisle = aisle;
+            this.element = element;
             this.side = side;
             this.bounds = bounds;
+            this.dir = dir;
+
+            this.rot = rot;
         }
 
         public int getId() {
@@ -261,16 +268,20 @@ public class StoreMap2D extends View {
             return this.show;
         }
 
-        public int getSide() {
+        public String getSide() {
             return side;
         }
 
-        public int getAisle() {
-            return aisle;
+        public String getElement() {
+            return element;
         }
 
         public RectF getBounds() {
             return bounds;
+        }
+
+        public float getRot() {
+            return rot;
         }
     }
 
@@ -278,14 +289,14 @@ public class StoreMap2D extends View {
     private class Dot {
         int aisle;
         int side;
-        float distFromFront;
+        float distFromStart;
 
         int id = -1;
 
         public Dot(int aisle, int side, float distFromFront) {
             this.aisle = aisle;
             this.side = side;
-            this.distFromFront = distFromFront;
+            this.distFromStart = distFromFront;
         }
 
         public Dot(int id) {
@@ -296,8 +307,8 @@ public class StoreMap2D extends View {
             return id;
         }
 
-        public float getDistFromFront() {
-            return distFromFront;
+        public float getDistFromStart() {
+            return distFromStart;
         }
 
         public int getAisle() {
@@ -313,14 +324,14 @@ public class StoreMap2D extends View {
     private class Zone {
         int aisle;
         int side;
-        float distFromFrontMin;
-        float distFromFrontMax;
+        float distFromStartMin;
+        float distFromStartMax;
 
         public Zone(int aisle, int side, float distFromFrontMin, float distFromFrontMax) {
             this.aisle = aisle;
             this.side = side;
-            this.distFromFrontMin = distFromFrontMin;
-            this.distFromFrontMax = distFromFrontMax;
+            this.distFromStartMin = distFromFrontMin;
+            this.distFromStartMax = distFromFrontMax;
         }
     }
 
@@ -603,7 +614,7 @@ public class StoreMap2D extends View {
             oldHt = l.getHt();
             oldBottom = oldTop + oldHt;
 
-            if (l.getId() != thisLabel.getId() && l.getAisle() == thisLabel.getAisle() && l.getSide() == thisLabel.getSide()) {
+            if (l.getId() != thisLabel.getId() && l.getElement() == thisLabel.getElement() && l.getSide() == thisLabel.getSide()) {
                 //check if this label will overlap with lbl we're trying to draw. can simply use android Rect.intersect() method
 
                 if (RectF.intersects(thisLabel.getBounds(), l.getBounds())) {
@@ -687,38 +698,85 @@ public class StoreMap2D extends View {
         }
     }
 
-    private void layOutSubcatNames(int id, int subCatId, String name, int aisle, int side, float dist) {
-        String aisleName = "aisle_" + (side == 0 ? aisle + 1 : aisle) + "_" + (side == 0 ? aisle : aisle - 1);
+    private void layOutSubcatNames(int id, int subCatId, String name, String element, String side, float dist, String dir) {
+        //String aisleName = "aisle_" + (side == 0 ? aisle + 1 : aisle) + "_" + (side == 0 ? aisle : aisle - 1);
         //Log.i(TAG, "drawNameInAisle: looking for name " + aisleName);
 
         ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
 
         StaticLayout.Builder builder;
         StaticLayout mTextLayout;
-        float lblHeight;
+        float lblHeight, lblWidth;
 
-        for (SSWhalley.StoreElement element : elements) {
+        float x = 0, y = 0, bottom, len, width;
+        float rot = 0;
+
+        String text = Constants.showId ? name + " (" + id + ")" : name;
+        //Log.i(TAG, "text is " + text);
+
+        //create the text layout for this subcat label
+        builder = StaticLayout.Builder.obtain(text, 0, text.length(), subCatTextPaint, (int)Constants.subCatNameTextWidth);
+        mTextLayout = builder.build();
+
+        //get ht in pixels of the StaticLayout we created for the subcat label text
+        lblHeight = mTextLayout.getHeight();
+        lblWidth = mTextLayout.getWidth();
+
+        //get elemenet that this subcat lbl belongs to
+        for (SSWhalley.StoreElement e : elements) {
             //FIXME: is there a faster way to find the correct element?
-            if (element.getId().equals(aisleName)) {
+            if (e.getId().equals(element)) {
                 //find x center coord of aisle
-                RectF thisRect = element.getRect();
-                float x = thisRect.centerX();
-                float bottom = thisRect.bottom;
+                RectF thisRect = e.getRect();
 
-                float len = thisRect.height();
+                //if element is vert, want labels to go left/right
+                if (Objects.equals(e.getOrientation(), "v")) {
+                    x = thisRect.centerX();
+                    len = thisRect.height();
 
-                //y val should be aisle bottom - distance up the aisle where the prod is located
-                float y = bottom - (len * dist);
+                    if (Objects.equals(side, "n")) {
+                        //lbl lies on north (left) side of store element, so justify it right to aisle centerX
 
-                String text = Constants.showId ? name + " (" + id + ")" : name;
-                //Log.i(TAG, "text is " + text);
+                        x -= lblWidth;
 
-                //create the text layout for this subcat label
-                builder = StaticLayout.Builder.obtain(text, 0, text.length(), subCatTextPaint, (int)Constants.subCatNameTextWidth);
-                mTextLayout = builder.build();
+                        if (Objects.equals(dir, "e")) {
+                            //travelling upward on map
+                            //y val should be aisle bottom - distance up the aisle where the prod is located
+                            y = thisRect.bottom - (len * dist);
+                        }
+                        else {
+                            //travelling downward on map
+                            y = thisRect.top + (len * dist);
+                        }
+                    }
 
-                //get ht in pixels of the StaticLayout we created for the subcat label text
-                lblHeight = mTextLayout.getHeight();
+
+                }
+                //else labels should go up/down
+                else {
+                    rot = -90f;
+                    y = thisRect.centerY();
+                    width = thisRect.width();
+
+                    if (Objects.equals(side, "w")) {
+                        //lbl lies on west (lower) side of store element, so justify it right to aisle centerX
+
+                        x -= lblWidth;
+
+                        if (Objects.equals(dir, "n")) {
+                            //travelling upward on map
+                            //y val should be aisle bottom - distance up the aisle where the prod is located
+                            y = thisRect.right - (width * dist);
+                        }
+                        else {
+                            //travelling downward on map
+                            y = thisRect.left + (width * dist);
+                        }
+                    }
+
+                }
+
+                rot += e.getRot();
 
                 //Log.i(TAG, "subcatlabel x val is " + x + ", y val is " + y);
                 PointF pt = new PointF(x, y);
@@ -727,7 +785,7 @@ public class StoreMap2D extends View {
                 RectF rect = new RectF(x, y, x + Constants.subCatNameTextWidth, y + lblHeight);
 
                 //Log.i(TAG, "Creating new subcatlabel with name " + name + " and yval " + pt.y);
-                SubcatLabel newLabel = new SubcatLabel(pt, name, id, subCatId, lblHeight, rect, mTextLayout, aisle, side);
+                SubcatLabel newLabel = new SubcatLabel(pt, name, id, subCatId, lblHeight, rect, mTextLayout, element, side, dir, rot);
 
                 //add this subcat label to the drawn labels arraylist
                 //note that the PointF of this label is the actual final loc where lbl was drawn
@@ -751,23 +809,26 @@ public class StoreMap2D extends View {
                 //iterate over all rows in the subcats location table
                 do {
                     //get the indices of the table cols
-                    int subCatIdColIdx = cursor.getColumnIndex("subCatId");
-                    int nameColIdx = cursor.getColumnIndex("subCatName");
-                    int aisleColIdx = cursor.getColumnIndex("aisle");
-                    int sideColIdx = cursor.getColumnIndex("side");
-                    int distFromFrontColIdx = cursor.getColumnIndex("distFromFront");
-                    int idColIdx = cursor.getColumnIndex("_id");
+                    int subCatIdColIdx = cursor.getColumnIndex(DatabaseHelper.SUBCAT_ID);
+                    int nameColIdx = cursor.getColumnIndex(DatabaseHelper.SUBCAT_NAME);
+                    int aisleColIdx = cursor.getColumnIndex(DatabaseHelper.ELEMENT_NAME);
+                    int sideColIdx = cursor.getColumnIndex(DatabaseHelper.SIDE);
+                    int distFromStartColIdx = cursor.getColumnIndex(DatabaseHelper.DIST_FROM_START);
+                    int idColIdx = cursor.getColumnIndex(DatabaseHelper._ID);
+                    int dirColIdx = cursor.getColumnIndex(DatabaseHelper.DIR);
 
 
-                    if (subCatIdColIdx >= 0 && nameColIdx >= 0 && aisleColIdx >= 0 && sideColIdx >=0 && distFromFrontColIdx >= 0 && idColIdx >= 0) {
+                    if (subCatIdColIdx >= 0 && nameColIdx >= 0 && aisleColIdx >= 0 && sideColIdx >=0 && distFromStartColIdx >= 0 && idColIdx >= 0 && dirColIdx >= 0) {
                         int subCatId = cursor.getInt(subCatIdColIdx);
                         String subCatName = cursor.getString(nameColIdx);
-                        int aisle = cursor.getInt(aisleColIdx);
-                        int side = cursor.getInt(sideColIdx);
-                        float distFromFront = cursor.getFloat(distFromFrontColIdx);
+                        String element = cursor.getString(aisleColIdx);
+                        String side = cursor.getString(sideColIdx);
+                        float distFromStart = cursor.getFloat(distFromStartColIdx);
                         int id = cursor.getInt(idColIdx);
+                        String dir = cursor.getString(dirColIdx);
 
-                        layOutSubcatNames(id, subCatId, subCatName, aisle, side, distFromFront);
+
+                        layOutSubcatNames(id, subCatId, subCatName, element, side, distFromStart, dir);
                     }
                     else {
                         Log.e(TAG, "ERROR: column not found in table!!");
@@ -783,6 +844,7 @@ public class StoreMap2D extends View {
             canvas.save();
 
             canvas.translate(l.getPt().x, l.getPt().y);
+            canvas.rotate(l.getRot());
 
             if (l.getShow()) {
                 l.getTextLayout().draw(canvas);
@@ -1232,11 +1294,11 @@ public class StoreMap2D extends View {
         SSWhalley.StoreElement exit = ssWhalley.getElementByName("exit");
 
         start = new RectF(entrance.getRect().centerX(), entrance.getRect().top - Constants.cellHeight, entrance.getRect().centerX(), entrance.getRect().top);
-        start = MapUtils.convertArbitraryRectToCell(start, -1);
+        start = MapUtils.convertArbitraryRectToCell(start, null);
         startNode = MapUtils.convertCellBoundsToNodeId(start);
 
         end = new RectF(exit.getRect().centerX(), exit.getRect().top - Constants.cellHeight, exit.getRect().centerX(), exit.getRect().top);
-        end = MapUtils.convertArbitraryRectToCell(end, -1);
+        end = MapUtils.convertArbitraryRectToCell(end, null);
         endNode = MapUtils.convertCellBoundsToNodeId(end);
 
         //Log.i(TAG, "startnode ID is " + startNode + ", endNode ID is " + endNode);
@@ -1277,7 +1339,6 @@ public class StoreMap2D extends View {
 
     public void computePath() {
         //nodesToHit now contains ID nums of all nodes we need to visit
-
 
         shortestPaths.clear();
 

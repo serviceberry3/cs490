@@ -18,6 +18,7 @@ class BuildDatabase:
         self.__cursor = None
         self.__database_name = database_name
 
+        #file containing the SQL create table command
         self.__tables_file = None
 
         #should data actually be inserted??
@@ -177,6 +178,7 @@ def test_json_parse():
 if __name__ == '__main__':
     #test_json_parse()
     BuildDatabase(database_name="prod").prep_database()
+
     '''
     for name in absoluteFilePaths("."):
         print(name)
