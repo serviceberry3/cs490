@@ -21,7 +21,7 @@ public class Constants {
     public static final float aisleSpacing = aisleSpan - aisleWidth;
 
     //width that subcat text can occupy on side of aisle
-    public static final float subCatNameTextWidth = (aisleSpacing / 2) + (aisleWidth / 2);
+    public static final float subCatNameTextWidth = (aisleSpacing / 2) + (aisleWidth / 2); //padding of 3??
 
     public static final float dotsRad = 1f;
 
@@ -55,7 +55,7 @@ public class Constants {
     public static final float zoneRectStrokeWidth = 1;
 
     //show the label ID next to the subcat lbls?
-    public static final boolean showId = false;
+    public static final boolean showId = true;
 
     //how visible should the grid be?
     public static final int gridTransparency = 200;

@@ -16,6 +16,8 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentResultListener;
 
+import com.google.android.material.snackbar.Snackbar;
+
 import java.util.ArrayList;
 import java.util.Objects;
 
@@ -73,25 +75,34 @@ public class MapFragment extends Fragment {
 
                 int key = bundle.getInt("key");
                 if (key == 1) {
-                    //start the navigation visualization on the map
-                    binding.storeMap.startNav(shoppingList.getProdList());
 
-                    //make the next button visible for navigation
-                    binding.nextPathButton.setVisibility(View.VISIBLE);
+                    //start the navigation visualization on the map, ONLY proceeding if full route CAN be computed
+                    if (binding.storeMap.startNav(shoppingList.getProdList())) {
+                        //make the next button visible for navigation
+                        binding.nextPathButton.setVisibility(View.VISIBLE);
 
-                    //add room at bottom of window for the navigation next button
-                    RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) binding.storeMap.getLayoutParams();
-                    params.height = 1800;
-                    binding.storeMap.setLayoutParams(params);
+                        //add room at bottom of window for the navigation next button
+                        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) binding.storeMap.getLayoutParams();
+                        params.height = 1800;
+                        binding.storeMap.setLayoutParams(params);
 
-                    //set textview text
-                    binding.pathDescription.setText(getResources().getString(R.string.proceed_to) + shoppingList.getProdList().get(listItemIndex).getName());
-                    binding.pathDescription.setVisibility(View.VISIBLE);
-                    listItemIndex++;
+                        //set textview text
+                        binding.pathDescription.setText(getResources().getString(R.string.proceed_to) + shoppingList.getProdList().get(listItemIndex).getName());
+                        binding.pathDescription.setVisibility(View.VISIBLE);
+                        listItemIndex++;
 
-                    //set path index to 0 and invalidate so that first path is drawn
-                    binding.storeMap.setPathIdx(0);
-                    binding.storeMap.invalidate();
+                        //set path index to 0 and invalidate so that first path is drawn
+                        binding.storeMap.setPathIdx(0);
+                        binding.storeMap.invalidate();
+                    }
+                    else {
+                        if (shoppingList.getProblemItems().size() > 0) {
+                            Snackbar.make(binding.getRoot(), "The product " + shoppingList.getProblemItems().get(0).getName() + " is not in the map database.", Snackbar.LENGTH_SHORT).show();
+                        }
+                        else {
+                            Snackbar.make(binding.getRoot(), "Your route could not be computed.", Snackbar.LENGTH_SHORT).show();
+                        }
+                    }
                 }
             }
         });

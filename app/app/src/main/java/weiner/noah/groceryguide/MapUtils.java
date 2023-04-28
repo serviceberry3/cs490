@@ -1,6 +1,7 @@
 package weiner.noah.groceryguide;
 
 import android.database.Cursor;
+import android.graphics.Path;
 import android.graphics.RectF;
 import android.os.Bundle;
 import android.util.Log;
@@ -109,22 +110,59 @@ public class MapUtils {
     }
 
     //convert from subcat label bounds to the bounds of an actual map grid cell
-    //FIXME: needs updates after changed side to be a String
-    public static RectF convertArbitraryRectToCell(RectF subCatRect, String side) {
-        float left, top, rt, bottom;
+    public static RectF convertArbitraryRectToCell(RectF subCatRect, String side, float rot) {
+        float left = 0, top = 0, rt, bottom;
 
         //snap top to the grid line above
         top = Constants.cellHeight * (Math.floorDiv((long)subCatRect.top, (long)Constants.cellHeight));
 
+
         //if right (south) side
         if (Objects.equals(side, "s")) {
-            left = subCatRect.left + (Constants.cellWidth * (Constants.aisleWidth / (2*Constants.cellWidth)));
+            //snap right bound to grid
+            left = (float)(Constants.cellWidth * Math.ceil(subCatRect.right / Constants.cellWidth));
         }
+
+        //if left (north) side
         else if (Objects.equals(side, "n")) {
-            left = subCatRect.right - (Constants.cellWidth * (Constants.aisleWidth / (2*Constants.cellWidth)));
+            //snap left bound to grid
+            left = (float)(Constants.cellWidth * Math.floorDiv((long)subCatRect.left, (long)Constants.cellWidth));
         }
+
+        //if top (east) side
+        else if (Objects.equals(side, "e")) {
+            //horizontal fixture, rotation to the left
+            if (rot < 0) {
+                //snap left bound to grid
+                left = (float)(Constants.cellWidth * Math.floorDiv((long)subCatRect.left, (long)Constants.cellWidth));
+            }
+
+            //horizontal fixture, rotated to right
+            else {
+                //snap left bound to grid
+                left = (float)(Constants.cellWidth * Math.ceil(subCatRect.right / Constants.cellWidth));
+            }
+        }
+
+        //if bottom (west) side
+        else if (Objects.equals(side, "w")) {
+            //horizontal fixture, rotated to left
+            if (rot < 0) {
+                left = (float)(Constants.cellWidth * Math.ceil(subCatRect.right / Constants.cellWidth));
+            }
+
+            //horizontal fixture, rotated to right
+            else {
+                //snap left bound to grid
+                left = (float)(Constants.cellWidth * Math.floorDiv((long)subCatRect.left, (long)Constants.cellWidth));
+            }
+
+            top = (float)(Constants.cellHeight * Math.ceil(subCatRect.bottom / Constants.cellHeight));
+        }
+
+        //otherwise side should be null, this is a special case where caller assumes responsibility
         else {
-            left = Constants.cellHeight * Math.floorDiv((long)subCatRect.left, (long)Constants.cellWidth);
+            left = Constants.cellWidth * Math.floorDiv((long)subCatRect.left, (long)Constants.cellWidth);
         }
 
         bottom = top + Constants.cellHeight;
@@ -138,6 +176,16 @@ public class MapUtils {
         int row = (int) (bounds.top / Constants.cellHeight);
         int col = (int) (bounds.left / Constants.cellWidth);
 
-        return row * (int)Constants.mapFrameRectNumCellsWide + col;
+        int cand = row * (int)Constants.mapFrameRectNumCellsWide + col;
+
+        if (cand <= Constants.numCells - 1) {
+            return cand;
+        }
+
+        //STH WENT WRONG
+        else {
+            Log.i(TAG, "candidate node number " + cand + " is too big");
+            return -1;
+        }
     }
 }

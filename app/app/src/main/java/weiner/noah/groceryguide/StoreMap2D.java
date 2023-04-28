@@ -7,6 +7,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
@@ -36,7 +37,7 @@ public class StoreMap2D extends View {
     public int textPos;
 
     //PAINTS
-    public Paint textPaint, dotPaint, cameraRectPaint, zoneOfInterestRectPaint, userLocPaint;
+    public Paint textPaint, dotPaint, debugRectPaint, zoneOfInterestRectPaint, userLocPaint;
     public TextPaint subCatTextPaint, tinyTextPaint;
 
     public float textWidth = 10;
@@ -86,7 +87,7 @@ public class StoreMap2D extends View {
     private Graph mGraph;
     private Graph nodesToHitGraph;
 
-    //labels that have been drawn, along w ith their x,y coordinates
+    //labels to be drawn, along with their drawing coordinates and bounding Paths
     private final ArrayList<SubcatLabel> subCatLabels = new ArrayList<SubcatLabel>();
     private ArrayList<SubcatLabel> drawnLabelsSaved;
 
@@ -96,7 +97,7 @@ public class StoreMap2D extends View {
     //current transformation matrix for drawing Canvas that holds the map.
     //this is used on every single call of onDraw(), so on each redraw of the map Canvas
     Matrix matrix = new Matrix();
-    Matrix cameraMatrix = new Matrix();
+    Matrix ptsTransform = new Matrix();
 
     //save the previous matrix when doing zoom and pan
     Matrix savedMatrix = new Matrix();
@@ -192,10 +193,13 @@ public class StoreMap2D extends View {
     //a subcategory label (represents ONE SINGLE text label)
     private class SubcatLabel {
         PointF pt;
-        String txt;
+        String txt; //name of subcat
+
         int id, subCatId;
-        String element, //which store element does this lbl belong to?
-                side; //side: north, south, east, west
+
+        SSWhalley.StoreElement element; //which store element does this lbl belong to?
+
+        String side; //side: north, south, east, west
 
         String dir; //which direction was user walking when recording vid on which this subcat lbl was annotated?
 
@@ -211,14 +215,17 @@ public class StoreMap2D extends View {
         StaticLayout textLayout;
 
         //the bounds of the label (bounds of the StaticLayout) - left, top, right, bottom
-        RectF bounds;
+        Path bounds;
 
-        public SubcatLabel(PointF pt, String txt, int id, int subCatId, float ht, RectF bounds, StaticLayout layout, String element, String side, String dir, float rot) {
+        //dist from start
+        float distFromStart;
+
+        public SubcatLabel(PointF pt, String txt, int id, int subCatId, float ht, Path bounds, StaticLayout layout, SSWhalley.StoreElement element, String side, String dir, float rot) {
             this.pt = pt;
             this.txt = txt;
             this.id = id; //the regular id of the subcat label (autoincrement in the db)
             this.subCatId = subCatId; //the id of the actual subcategory that this label represents
-            this.ht = ht;
+            this.ht = ht; //ht that the lbl takes up
             this.textLayout = layout;
             this.show = true;
             this.element = element;
@@ -227,6 +234,16 @@ public class StoreMap2D extends View {
             this.dir = dir;
 
             this.rot = rot;
+        }
+
+        public SubcatLabel(int id, int subCatId, String subCatName, SSWhalley.StoreElement element, String side, float distFromStart, String dir) {
+            this.id = id;
+            this.subCatId = subCatId;
+            this.txt = subCatName;
+            this.element = element;
+            this.side = side;
+            this.distFromStart = distFromStart;
+            this.dir = dir;
         }
 
         public int getId() {
@@ -253,11 +270,16 @@ public class StoreMap2D extends View {
             return textLayout;
         }
 
+        /*
         //change the y position of this subcat label
         public void setY(float newY) {
             this.pt.y = newY;
             this.bounds.top = newY;
             this.bounds.bottom = this.bounds.top + this.ht;
+        }*/
+
+        public void setDistFromStart(float newDist) {
+            this.distFromStart = newDist;
         }
 
         public void setShow(boolean show) {
@@ -272,16 +294,48 @@ public class StoreMap2D extends View {
             return side;
         }
 
-        public String getElement() {
+        public SSWhalley.StoreElement getElement() {
             return element;
         }
 
-        public RectF getBounds() {
+        public Path getBounds() {
             return bounds;
         }
 
         public float getRot() {
             return rot;
+        }
+
+        public String getDir() {
+            return dir;
+        }
+
+        public float getDistFromStart() {
+            return distFromStart;
+        }
+
+        public void setBounds(Path bounds) {
+            this.bounds = bounds;
+        }
+
+        public void setDir(String dir) {
+            this.dir = dir;
+        }
+
+        public void setPt(PointF pt) {
+            this.pt = pt;
+        }
+
+        public void setHt(float ht) {
+            this.ht = ht;
+        }
+
+        public void setTextLayout(StaticLayout textLayout) {
+            this.textLayout = textLayout;
+        }
+
+        public void setRot(float rot) {
+            this.rot = rot;
         }
     }
 
@@ -382,7 +436,8 @@ public class StoreMap2D extends View {
         userLocPaint.setColor(Color.BLUE);
 
         subCatTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
-        subCatTextPaint.setTextScaleX(Constants.subCatTextXScale); //this seems to stop letters from overlapping
+        //subCatTextPaint.setTextScaleX(Constants.subCatTextXScale); //this seems to stop letters from overlapping
+        subCatTextPaint.setLetterSpacing(0.5f);
         subCatTextPaint.setTextSize(Constants.subCatNameTextSize);
         subCatTextPaint.setColor(textColor);
 
@@ -390,9 +445,9 @@ public class StoreMap2D extends View {
         tinyTextPaint.setTextSize(1);
         tinyTextPaint.setColor(Color.BLACK);
 
-        cameraRectPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        cameraRectPaint.setColor(Color.BLACK);
-        cameraRectPaint.setStyle(Paint.Style.STROKE);
+        debugRectPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        debugRectPaint.setColor(Color.BLACK);
+        debugRectPaint.setStyle(Paint.Style.STROKE);
 
         zoneOfInterestRectPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         zoneOfInterestRectPaint.setColor(Color.GREEN);
@@ -417,8 +472,9 @@ public class StoreMap2D extends View {
 
 
         //load (from db) and lay out the subcategory name labels, i.e. find all of their drawing positions on the canvas
-        loadSubcatNames();
-        adjustSubCatNames();
+        loadSubcatLabels();
+        pruneDuplicateLabels();
+        adjustSubCatLabels();
     }
 
     public ArrayList<Integer> getFinalNodeOrdering() {
@@ -593,46 +649,116 @@ public class StoreMap2D extends View {
         dots.add(new Dot(id));
     }
 
+    public Pair<Float, Float> getLabelLocalPos(SubcatLabel l) {
+        float lblPosTop, lblPosBottom;
+        RectF storeFixture = l.getElement().getRect();
+        RectF ret;
+
+        //label is on left/rt side of store fixture (fixture is vertical)
+        if (Objects.equals(l.getSide(), "n") || Objects.equals(l.getSide(), "s")) {
+            //moving upwards
+            if (Objects.equals(l.getDir(), "e")) {
+                lblPosTop = storeFixture.bottom - (l.getDistFromStart() * storeFixture.height());
+            }
+
+            //moving downwards
+            else {
+                lblPosTop = (l.getDistFromStart() * storeFixture.height()) + storeFixture.top;
+            }
+            lblPosBottom = lblPosTop + l.getTextLayout().getHeight();
+        }
+
+        //label is on top/bottom side of store fixture (fixture is horizontal)
+        else {
+            //moving left
+            if (Objects.equals(l.getDir(), "n")) {
+                lblPosTop = storeFixture.right - (l.getDistFromStart() * storeFixture.width());
+            }
+
+            //moving rt
+            else {
+                lblPosTop = (l.getDistFromStart() * storeFixture.width()) + storeFixture.left;
+            }
+            lblPosBottom = lblPosTop + l.getTextLayout().getHeight();
+        }
+
+        return new Pair<Float, Float>(lblPosTop, lblPosBottom);
+    }
+
+    public void pruneDuplicateLabels() {
+        for (SubcatLabel l : subCatLabels) {
+            for (SubcatLabel lbl : subCatLabels) {
+                if (l != lbl && l.getElement() == lbl.getElement() && Objects.equals(l.getTxt(), lbl.getTxt()) && Objects.equals(l.getSide(), lbl.getSide()) && l.getDistFromStart() == lbl.getDistFromStart() && l.getShow() && lbl.getShow()) {
+                    Log.i(TAG, "Duplicate label found: label " + l.getTxt() + " with ID " + l.getId() + " is duplicate of label with ID " + lbl.getId());
+                    l.setShow(false);
+                    break; //continue to next for loop iteration
+                }
+            }
+        }
+
+        ListIterator<SubcatLabel> iter = subCatLabels.listIterator();
+        SubcatLabel l;
+
+        while (iter.hasNext()) {
+            l = iter.next();
+            if (!l.getShow()) {
+                iter.remove();
+            }
+        }
+    }
+
     public boolean checkOverlapWithOtherLabels(SubcatLabel thisLabel) {
         String name;
         float newTop, newHt, newBottom, oldTop, oldHt, oldBottom;
+        Pair<Float, Float> localPosOfPassedLbl = getLabelLocalPos(thisLabel);
+        Pair<Float, Float> localPosOfCompetingLbl;
+
+        SSWhalley.StoreElement element = thisLabel.getElement();
+        RectF fixtureRect = thisLabel.getElement().getRect();
 
         //Log.i(TAG, "Now running adjusts for lbl with ID #" + thisLabel.getId() + ", which spans from " + thisLabel.getPt().y + " to " + (thisLabel.getPt().y + thisLabel.getHt()));
         name = thisLabel.getTxt();
-        newTop = thisLabel.getPt().y;
+
+        /*newTop = thisLabel.getPt().y;
         newHt = thisLabel.getHt();
-        newBottom = newTop + newHt;
+        newBottom = newTop + newHt;*/
+
+        newTop = localPosOfPassedLbl.first;
+        newHt = thisLabel.getHt();
+        newBottom = localPosOfPassedLbl.second;
+
+        Path res = new Path();
 
         SubcatLabel l;
 
+        //iterate through all of the OTHER subcat labels
         ListIterator<SubcatLabel> iter = subCatLabels.listIterator();
 
         while (iter.hasNext()) {
             l = iter.next();
 
-            oldTop = l.getPt().y;
-            oldHt = l.getHt();
-            oldBottom = oldTop + oldHt;
+            res.reset();
 
-            if (l.getId() != thisLabel.getId() && l.getElement() == thisLabel.getElement() && l.getSide() == thisLabel.getSide()) {
+            //only look at other subcat lbls that are in the same store fixture, on the same side
+            if (l.getId() != thisLabel.getId() && l.getElement() == thisLabel.getElement() && Objects.equals(l.getSide(), thisLabel.getSide())) {
                 //check if this label will overlap with lbl we're trying to draw. can simply use android Rect.intersect() method
 
-                if (RectF.intersects(thisLabel.getBounds(), l.getBounds())) {
-                    //if the labels are the same and have the exact same position (annotator added multiple lbls for a subcat on the same frame), just remove duplicate lbl from the list
-                    if (Objects.equals(l.getTxt(), name) && newTop == oldTop) {
-                        //Log.i(TAG, "Duplicate label found: new label " + name + " with ID " + thisLabel.getId() + " is duplicate of label with ID " + l.getId());
-                        thisLabel.setShow(false);
-                        //iter.remove();
-                        return false;
-                    }
+                if (res.op(thisLabel.getBounds(), l.getBounds(), Path.Op.INTERSECT)) {
+                    //compute the offset in pixels of the lbl from "start" of the store fixture
+                    /*oldTop = l.getPt().y;
+                    oldHt = l.getHt();
+                    oldBottom = oldTop + oldHt;*/
+
+                    localPosOfCompetingLbl = getLabelLocalPos(l);
+
+                    oldTop = localPosOfCompetingLbl.first;
+                    oldHt = l.getHt();
+                    oldBottom = localPosOfCompetingLbl.second;
 
                     //DBUG
-                    /*Log.i(TAG, "Overlap found for label " + name + " with ID #" + thisLabel.getId() + ": its position " + newBottom + " overlaps with label for category " + l.getTxt() + " with ID #" + l.getId() +
-                            " which spans from " + l.getPt().y + " to " + (l.getPt().y + l.getHt()) + " and has linecount " + l.getTextLayout().getLineCount() +
-                            ". Adding " + (oldBottom - newTop) + " to this lbl which will move it down to " + (newTop + (oldBottom - newTop)));*/
 
-                    //FOUR OVERLAP CASES
-                    if (oldTop <= newTop && newTop < oldBottom) {
+                    //FOUR OVERLAP CASES (each is separate if clause to make it clear)
+                    /*if (oldTop <= newTop && newTop < oldBottom) {
                         newTop += oldBottom - newTop;
                     }
                     else if ((newBottom > oldTop && newBottom <= oldBottom)) {
@@ -643,11 +769,48 @@ public class StoreMap2D extends View {
                     }
                     else if (oldTop >= newTop  && oldBottom <= newBottom) {
                         newTop += newBottom - oldTop;
+                    }*/
+                    Log.i(TAG, "Comparing passed label " + name + " with ID #" + thisLabel.getId() + " to label " + l.getTxt() + " with ID #" + l.getId() + ": passed label has top bottom " + newTop + ", " + newBottom + ", while " +
+                            "competing label in question has top bottom " + oldTop + ", " + oldBottom);
+
+                    if (oldTop <= newTop && newTop < oldBottom) {
+                        Log.i(TAG, "Overlap found for label " + name + " with ID #" + thisLabel.getId() + ": its position " + newTop + " overlaps with label for category " + l.getTxt() + " with ID #" + l.getId() +
+                                " which spans from " + oldTop + " to " + oldBottom + " and has linecount " + l.getTextLayout().getLineCount() +
+                                ". subtracting " + (oldBottom - newTop)/element.getSpan() + " to this lbl which will move it down to " + (thisLabel.getDistFromStart() - (oldBottom - newTop)/element.getSpan()));
+                        //newTop += oldBottom - newTop;
+                        thisLabel.setDistFromStart(thisLabel.getDistFromStart() - (oldBottom - newTop)/element.getSpan());
+                    }
+                    else if ((newBottom > oldTop && newBottom <= oldBottom)) {
+                        Log.i(TAG, "Overlap found for label " + name + " with ID #" + thisLabel.getId() + ": its position " + newTop + " overlaps with label for category " + l.getTxt() + " with ID #" + l.getId() +
+                                " which spans from " + oldTop + " to " + oldBottom + " and has linecount " + l.getTextLayout().getLineCount() +
+                                ". Adding " + (newBottom - oldTop) + " to this lbl which will move it down to " + (newTop + (newBottom - oldTop)));
+                        //newTop += newBottom - oldTop;
+                        thisLabel.setDistFromStart(thisLabel.getDistFromStart() - (newBottom - oldTop)/element.getSpan());
+                    }
+                    else if (newTop >= oldTop && newBottom <= oldBottom) {
+                        Log.i(TAG, "Overlap found for label " + name + " with ID #" + thisLabel.getId() + ": its position " + newTop + " overlaps with label for category " + l.getTxt() + " with ID #" + l.getId() +
+                                " which spans from " + oldTop + " to " + oldBottom + " and has linecount " + l.getTextLayout().getLineCount() +
+                                ". Adding " + (oldBottom - newTop) + " to this lbl which will move it down to " + (newTop + (oldBottom - newTop)));
+                        //newTop += oldBottom - newTop;
+                        thisLabel.setDistFromStart(thisLabel.getDistFromStart() - (oldBottom - newTop)/element.getSpan());
+                    }
+                    else if (oldTop >= newTop  && oldBottom <= newBottom) {
+                        Log.i(TAG, "Overlap found for label " + name + " with ID #" + thisLabel.getId() + ": its position " + newTop + " overlaps with label for category " + l.getTxt() + " with ID #" + l.getId() +
+                                " which spans from " + oldTop + " to " + oldBottom + " and has linecount " + l.getTextLayout().getLineCount() +
+                                ". Adding " + (newBottom - oldTop) + " to this lbl which will move it down to " + (newTop + (newBottom - oldTop)));
+                        //newTop += newBottom - oldTop;
+                        thisLabel.setDistFromStart(thisLabel.getDistFromStart() - (newBottom - oldTop)/element.getSpan());
+                    }
+                    else {
+                        Log.i(TAG, "NONE triggered, but calling layOutSubcatLabel()");
+                        return false;
                     }
 
                     //adjust this lbl's y starting position by adding the overlap distance
 
-                    thisLabel.setY(newTop);
+                    //thisLabel.setY(newTop); //FIXME
+                    //iter.remove();
+                    layOutSubcatLabel(thisLabel, false);
                     return true; //return true as long as there was some adjustment
                 }
 
@@ -673,6 +836,7 @@ public class StoreMap2D extends View {
             }
         }
 
+        //subCatLabels.add(thisLabel);
         return false; //checked against all existing lbls in same aisle and side, and no issues
     }
 
@@ -680,9 +844,24 @@ public class StoreMap2D extends View {
      * This function adjusts the subcategory labels so that none are overlapping, making the map easier to read. These subcategory labels are originally annotated by a human annotator.
      * This function will modify the PointF objs of each label to change their coordinates appropriately.
      */
-    public void adjustSubCatNames() {
+    public void adjustSubCatLabels() {
+        //make copy of the subCatLabels list
+        //ArrayList<SubcatLabel> lbls = new ArrayList<SubcatLabel>(subCatLabels);
+
         ListIterator<SubcatLabel> iter = subCatLabels.listIterator();
         SubcatLabel thisLabel;
+
+        /*
+        for (SubcatLabel thisLabel : lbls) {
+            //adjust the position of the subcat label until it's not overlapping any other labels (hopefully pos isn't adjusted too much)
+            while(checkOverlapWithOtherLabels(thisLabel));
+
+            //if this label was marked for deletion due to being a duplicate, delete it from the subcat labels list
+            if (!thisLabel.getShow()) {
+                iter.remove();
+            }
+        }*/
+
 
         //for each subcat label, go through and see if any other label will overlap with it
         while (iter.hasNext()) {
@@ -698,9 +877,8 @@ public class StoreMap2D extends View {
         }
     }
 
-    private void layOutSubcatNames(int id, int subCatId, String name, String element, String side, float dist, String dir) {
-        //String aisleName = "aisle_" + (side == 0 ? aisle + 1 : aisle) + "_" + (side == 0 ? aisle : aisle - 1);
-        //Log.i(TAG, "drawNameInAisle: looking for name " + aisleName);
+    private void layOutSubcatLabel(SubcatLabel l, boolean insert) {
+        //Log.i(TAG, "layOutSubcatNames() called for lbl subcat " + l.getTxt() + ", element " + l.getElement() + ", side " + l.getSide() + ", dir " + l.getDir());
 
         ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
 
@@ -711,90 +889,148 @@ public class StoreMap2D extends View {
         float x = 0, y = 0, bottom, len, width;
         float rot = 0;
 
-        String text = Constants.showId ? name + " (" + id + ")" : name;
+        String text = Constants.showId ? l.getTxt() + " (" + l.getId() + ")" : l.getTxt();
         //Log.i(TAG, "text is " + text);
 
         //create the text layout for this subcat label
-        builder = StaticLayout.Builder.obtain(text, 0, text.length(), subCatTextPaint, (int)Constants.subCatNameTextWidth);
+        builder = StaticLayout.Builder.obtain(text, 0, text.length(), subCatTextPaint, (int)Math.min(subCatTextPaint.measureText(text), Constants.subCatNameTextWidth));
         mTextLayout = builder.build();
 
         //get ht in pixels of the StaticLayout we created for the subcat label text
         lblHeight = mTextLayout.getHeight();
         lblWidth = mTextLayout.getWidth();
 
-        //get elemenet that this subcat lbl belongs to
-        for (SSWhalley.StoreElement e : elements) {
-            //FIXME: is there a faster way to find the correct element?
-            if (e.getId().equals(element)) {
-                //find x center coord of aisle
-                RectF thisRect = e.getRect();
+        //args: left, top, rt, bottom
+        //create rect that represents the bounds of the label
+        RectF lblBounds;
+        Path lblBoundsPath = new Path();
 
-                //if element is vert, want labels to go left/right
-                if (Objects.equals(e.getOrientation(), "v")) {
-                    x = thisRect.centerX();
-                    len = thisRect.height();
+        SSWhalley.StoreElement e = l.getElement();
 
-                    if (Objects.equals(side, "n")) {
-                        //lbl lies on north (left) side of store element, so justify it right to aisle centerX
+        //find x center coord of aisle
+        RectF thisRect = e.getRect();
 
-                        x -= lblWidth;
+        //if element is vert, want labels to go left/right
+        if (Objects.equals(e.getOrientation(), "v")) {
+            x = thisRect.centerX();
+            len = thisRect.height();
 
-                        if (Objects.equals(dir, "e")) {
-                            //travelling upward on map
-                            //y val should be aisle bottom - distance up the aisle where the prod is located
-                            y = thisRect.bottom - (len * dist);
-                        }
-                        else {
-                            //travelling downward on map
-                            y = thisRect.top + (len * dist);
-                        }
-                    }
-
-
-                }
-                //else labels should go up/down
-                else {
-                    rot = -90f;
-                    y = thisRect.centerY();
-                    width = thisRect.width();
-
-                    if (Objects.equals(side, "w")) {
-                        //lbl lies on west (lower) side of store element, so justify it right to aisle centerX
-
-                        x -= lblWidth;
-
-                        if (Objects.equals(dir, "n")) {
-                            //travelling upward on map
-                            //y val should be aisle bottom - distance up the aisle where the prod is located
-                            y = thisRect.right - (width * dist);
-                        }
-                        else {
-                            //travelling downward on map
-                            y = thisRect.left + (width * dist);
-                        }
-                    }
-
-                }
-
-                rot += e.getRot();
-
-                //Log.i(TAG, "subcatlabel x val is " + x + ", y val is " + y);
-                PointF pt = new PointF(x, y);
-
-                //args: left, top, rt, bottom
-                RectF rect = new RectF(x, y, x + Constants.subCatNameTextWidth, y + lblHeight);
-
-                //Log.i(TAG, "Creating new subcatlabel with name " + name + " and yval " + pt.y);
-                SubcatLabel newLabel = new SubcatLabel(pt, name, id, subCatId, lblHeight, rect, mTextLayout, element, side, dir, rot);
-
-                //add this subcat label to the drawn labels arraylist
-                //note that the PointF of this label is the actual final loc where lbl was drawn
-                subCatLabels.add(newLabel);
+            if (Objects.equals(l.getSide(), "n")) {
+                //lbl lies on north (left) side of store element, so justify it right to aisle centerX
+                x -= lblWidth;
             }
+            if (Objects.equals(l.getDir(), "e")) {
+                //travelling upward on map
+                //y val should be aisle bottom - distance up the aisle where the prod is located
+                y = thisRect.bottom - (len * l.getDistFromStart());
+            }
+            else {
+                //travelling downward on map
+                y = thisRect.top + (len * l.getDistFromStart());
+            }
+        }
+
+        //else labels should go up/down
+        else {
+            rot += -90f;
+            y = thisRect.centerY();
+            width = thisRect.width();
+
+            if (Objects.equals(l.getSide(), "w")) {
+                //lbl lies on west (lower) side of store element, so justify it right to aisle centery
+
+                y += lblWidth;
+
+                if (Objects.equals(l.getDir(), "n")) {
+                    //travelling left on map
+                    //x val should be aisle right - dist
+                    x = thisRect.right - (width * l.getDistFromStart());
+                }
+                else {
+                    //travelling right on map
+                    //x val should be aisle left + dist
+                    x = thisRect.left + (width * l.getDistFromStart());
+                }
+            }
+
+
+            else {
+               //lbl lies on east (upper) side of store element, so leave it left-justified to aisle centery
+                if (Objects.equals(l.getDir(), "n")) {
+                    //travelling left on map
+                    //x val should be aisle right - dist
+                    x = thisRect.right - (width * l.getDistFromStart());
+                }
+                else {
+                    //travelling right on map
+                    //x val should be aisle left + dist
+                    x = thisRect.left + (width * l.getDistFromStart());
+                }
+            }
+
+        }
+
+        float[] pts = new float[2];
+
+        pts[0] = x;
+        pts[1] = y;
+
+        lblBounds = new RectF(x, y, x + lblWidth, y + lblHeight);
+
+        //rotate the label drawing point around the center of the store fixture rect
+        ptsTransform.setRotate(e.getRot(), thisRect.centerX(), thisRect.centerY());
+        ptsTransform.mapPoints(pts);
+
+        PointF pt = new PointF(pts[0], pts[1]);
+
+        ptsTransform.reset();
+
+        //rotate each label's bounding rect by -90 if the fixture is horizontal
+        ptsTransform.setRotate(rot, lblBounds.left, lblBounds.top);
+        ptsTransform.mapRect(lblBounds);
+
+        //you can't use mapRect() to actually rotate a Rect, since a Rect always has to have its edges aligned with the x/y axes
+        //to rotate a rect off the axes, need to rotate each of the Rect's four corner pts separately
+        float[] rectCorners = {
+                lblBounds.left, lblBounds.top, //left, top
+                lblBounds.right, lblBounds.top, //right, top
+                lblBounds.right, lblBounds.bottom, //right, bottom
+                lblBounds.left, lblBounds.bottom//left, bottom
+        };
+
+        ptsTransform.reset();
+        ptsTransform.setRotate(e.getRot(), thisRect.centerX(), thisRect.centerY());
+        ptsTransform.mapPoints(rectCorners);
+
+        //reconstruct the rotated rect
+        lblBoundsPath.moveTo(rectCorners[0], rectCorners[1]);
+        lblBoundsPath.lineTo(rectCorners[2], rectCorners[3]);
+        lblBoundsPath.lineTo(rectCorners[4], rectCorners[5]);
+        lblBoundsPath.lineTo(rectCorners[6], rectCorners[7]);
+        lblBoundsPath.close();
+
+        //Log.i(TAG, "subcatlabel x val is " + x + ", y val is " + y);
+
+        //add rotation of the store fixture
+        rot += e.getRot();
+
+        //Log.i(TAG, "Creating new subcatlabel with name " + name + " and yval " + pt.y);
+
+        l.setPt(pt);
+        l.setHt(lblHeight);
+        l.setBounds(lblBoundsPath);
+        l.setTextLayout(mTextLayout);
+        l.setRot(rot);
+        l.setShow(true);
+
+        if (insert) {
+            //add this subcat label to the labels arraylist so that it's drawn in onDraw()
+            //note that the PointF of this label is the actual final loc where lbl was drawn
+            subCatLabels.add(l);
         }
     }
 
-    private void loadSubcatNames() {
+    private void loadSubcatLabels() {
         //need to examine the db, fetch coords for each
         //instantiate new DBManager object and open the db
         dbManager = new DBManager(getContext());
@@ -802,6 +1038,9 @@ public class StoreMap2D extends View {
 
         //get cursor to read the db, advancing to first entry
         Cursor cursor = dbManager.fetch(DatabaseHelper.SUBCAT_LOC_TABLE_NAME, new Query(), null);
+        SubcatLabel l;
+
+        SSWhalley.StoreElement elemObj;
 
         if (cursor != null) {
             //move cursor to first row of table
@@ -827,8 +1066,10 @@ public class StoreMap2D extends View {
                         int id = cursor.getInt(idColIdx);
                         String dir = cursor.getString(dirColIdx);
 
+                        elemObj = ssWhalley.getElementByName(element);
 
-                        layOutSubcatNames(id, subCatId, subCatName, element, side, distFromStart, dir);
+                        l = new SubcatLabel(id, subCatId, subCatName, elemObj, side, distFromStart, dir);
+                        layOutSubcatLabel(l, true);
                     }
                     else {
                         Log.e(TAG, "ERROR: column not found in table!!");
@@ -847,9 +1088,12 @@ public class StoreMap2D extends View {
             canvas.rotate(l.getRot());
 
             if (l.getShow()) {
+                //Log.i(TAG, "Drawing subcat label " + l.getTextLayout().toString() + " at point " + l.getPt());
                 l.getTextLayout().draw(canvas);
+                //canvas.drawCircle(l.getPt().x, l.getPt().y, 2, dotPaint);
             }
             canvas.restore();
+            canvas.drawPath(l.getBounds(), debugRectPaint);
         }
     }
 
@@ -1253,29 +1497,49 @@ public class StoreMap2D extends View {
 
 
 
-    public void startNav(List<Product> shopList) {
+    public boolean startNav(List<Product> shopList) {
         nodesToHit.clear();
 
         int subCatId;
         int nodeId;
         RectF cell; //left, top, rt, bottom
 
+        RectF lblBoundingRect = new RectF();
+
+        boolean found = false;
+
         //come up with list of cells for each product in the shopping list
         for (Product p : shopList) {
             //get subcat id for the prod
             subCatId = p.getSubCatId();
+            found = false;
 
             //find any subcat label with matching subcat ID
             for (SubcatLabel l : subCatLabels) {
                 if (l.getSubCatId() == p.getSubCatId()) {
-                    cell = MapUtils.convertArbitraryRectToCell(l.getBounds(), l.getSide());
-                    //Log.i(TAG, "Cell found: bounds left " + cell.left + ", top " + cell.top + ", rt " + cell.right + ", bottom " + cell.bottom);
+                    l.getBounds().computeBounds(lblBoundingRect, true);
+                    cell = MapUtils.convertArbitraryRectToCell(lblBoundingRect, l.getSide(), l.getElement().getRot());
+
+                    Log.i(TAG, "Product " + p.getName() + " matched to existing subcat label " + l.getTxt() + ", label bounding rect bounds are left " + lblBoundingRect.left + ", top " + lblBoundingRect.top + ", rt " + lblBoundingRect.right + ", bottom " + lblBoundingRect.bottom);
+                    Log.i(TAG, "Product " + p.getName() + " matched to existing subcat label " + l.getTxt() + ", cell bounds are left " + cell.left + ", top " + cell.top + ", rt " + cell.right + ", bottom " + cell.bottom);
 
                     //get ID of corresponding node in graph
                     nodeId = MapUtils.convertCellBoundsToNodeId(cell);
+                    if (nodeId == -1) {
+                        Log.i(TAG, "startNav() ERROR: could not get node ID for subcat lbl " + l.getTxt());
+                        return false;
+                    }
+
                     nodesToHit.add(nodeId);
+                    found = true;
                     break; //continue to next product in the shopping list
                 }
+            }
+
+            //if the product's subcat is not in the map db, return false immediately
+            if (!found) {
+                mainActivity.shoppingLists.get(0).addProblemItem(p);
+                return false;
             }
         }
 
@@ -1283,7 +1547,7 @@ public class StoreMap2D extends View {
         addStartAndEndNodes();
 
         //start shortest path computations
-        computePath();
+        return computePath();
     }
 
     public void addStartAndEndNodes() {
@@ -1294,11 +1558,11 @@ public class StoreMap2D extends View {
         SSWhalley.StoreElement exit = ssWhalley.getElementByName("exit");
 
         start = new RectF(entrance.getRect().centerX(), entrance.getRect().top - Constants.cellHeight, entrance.getRect().centerX(), entrance.getRect().top);
-        start = MapUtils.convertArbitraryRectToCell(start, null);
+        start = MapUtils.convertArbitraryRectToCell(start, null, 0);
         startNode = MapUtils.convertCellBoundsToNodeId(start);
 
         end = new RectF(exit.getRect().centerX(), exit.getRect().top - Constants.cellHeight, exit.getRect().centerX(), exit.getRect().top);
-        end = MapUtils.convertArbitraryRectToCell(end, null);
+        end = MapUtils.convertArbitraryRectToCell(end, null, 0);
         endNode = MapUtils.convertCellBoundsToNodeId(end);
 
         //Log.i(TAG, "startnode ID is " + startNode + ", endNode ID is " + endNode);
@@ -1307,10 +1571,12 @@ public class StoreMap2D extends View {
         nodesToHit.add(endNode);
     }
 
-
-
     //compute Manhattan distance (taxicab distance) between two nodes. Use this as heuristic fxn for A* algorithm
     public float heuristicManhattanDist(Node a, Node b) {
+        if (a == null || b == null | a.getCellBounds() == null || b.getCellBounds() == null) {
+            return -1f;
+        }
+
         float ax = a.getCellBounds().centerX();
         float ay = a.getCellBounds().centerY();
 
@@ -1337,7 +1603,7 @@ public class StoreMap2D extends View {
     }
 
 
-    public void computePath() {
+    public boolean computePath() {
         //nodesToHit now contains ID nums of all nodes we need to visit
 
         shortestPaths.clear();
@@ -1346,7 +1612,7 @@ public class StoreMap2D extends View {
         Integer currNode;
         ArrayList<Pair<Integer, Integer>> neighbors;
         ShortestPath thisPath;
-        float prio, updatedCost;
+        float prio, updatedCost, heur;
         ArrayList<Node> data = mGraph.getData();
 
         //FIRST: find shortest path between each pair of nodes in nodesToHit
@@ -1394,12 +1660,17 @@ public class StoreMap2D extends View {
                         updatedCost = thisPath.getDistSoFar().get(currNode) + Constants.cellHeight;
 
                         //if we haven't already visited this node, OR if we have visited this node but now have found some shorter path to it
-                        if (!thisPath.getCameFrom().containsKey(nextNodeCandidate) || updatedCost < thisPath.getDistSoFar().get(nextNodeCandidate)) {
+                        if (!thisPath.getCameFrom().containsKey(nextNodeCandidate.first) || updatedCost < thisPath.getDistSoFar().get(nextNodeCandidate.first)) {
                             thisPath.updateDistSoFarEntry(nextNodeCandidate.first, updatedCost);
 
                             //in order to favor nodes that are closer to the destination node, compute Manhattan dist between this node and the dst node and use that
                             //as priority value in the queue
-                            prio = updatedCost + heuristicManhattanDist(data.get(dstNode), data.get(nextNodeCandidate.first));
+                            heur = heuristicManhattanDist(data.get(dstNode), data.get(nextNodeCandidate.first));
+
+                            if (heur == -1f) {
+                                return false;
+                            }
+                            prio = updatedCost + heur;
                             data.get(nextNodeCandidate.first).setPriority(prio);
 
                             /*Log.i(TAG, "Adding node " + nextNodeCandidate + " to queue with priority: cost to get here is " + updatedCost + " and manhatt dist to dest is " + heuristicManhattanDist(data.get(dstNode), data.get(nextNodeCandidate))
@@ -1418,7 +1689,7 @@ public class StoreMap2D extends View {
         storeBackTrackedShortestPaths();
 
         //compute the final route using one of two methods
-        computeRouteOrder();
+        return computeRouteOrder();
     }
 
     public void storeBackTrackedShortestPaths() {
@@ -1431,6 +1702,11 @@ public class StoreMap2D extends View {
         //Log.i(TAG, "fetchShortestDistBetweenNodes(): looking for nodes " + n1 + " and " + n2);
 
         for (ArrayList<Integer> list : backTrackedShortestPaths) {
+            if (list == null) {
+                Log.i(TAG, "fetchShortestDistBetweenNodes() ERROR: this backTrackedShortestPaths list is NULL!");
+                return -1f;
+            }
+
             if ((Objects.equals(list.get(0), n1) && Objects.equals(list.get(list.size() - 1), n2)) ||
                     (Objects.equals(list.get(0), n2) && Objects.equals(list.get(list.size() - 1), n1))) {
                 return (list.size() - 1) * Constants.cellHeight; //first node shouldn't count in distance computation
@@ -1445,6 +1721,10 @@ public class StoreMap2D extends View {
         //Log.i(TAG, "fetchBacktrackedPathBetweenNodes called for nodes " + n1 + ", " + n2);
 
         for (ArrayList<Integer> list : backTrackedShortestPaths) {
+            if (list == null) {
+                Log.i(TAG, "fetchBacktrackedPathBetweenNodes() ERROR: this backTrackedShortestPaths list is null!");
+            }
+
             if ((Objects.equals(list.get(0), n1) && Objects.equals(list.get(list.size() - 1), n2))) {
                 return list;
             }
@@ -1456,6 +1736,7 @@ public class StoreMap2D extends View {
         }
 
         Log.i(TAG, "fetchBacktrackedPathBetweenNodes returning null!");
+
         //shortest path between these nodes was not computed
         return null;
     }
@@ -1531,7 +1812,7 @@ public class StoreMap2D extends View {
         }
     }
 
-    public void computeRouteOrder() {
+    public boolean computeRouteOrder() {
         float shortestRouteDist = Float.POSITIVE_INFINITY;
 
         ArrayList<Integer> shortestRoute;
@@ -1570,7 +1851,7 @@ public class StoreMap2D extends View {
                     }
                     else {
                         //shortest path between these nodes has not been computed for some reason
-                        return;
+                        return false;
                     }
                 }
 
@@ -1604,5 +1885,7 @@ public class StoreMap2D extends View {
 
             primsAlgo(mst, nodesToHitGraph);
         }
+
+        return true;
     }
 }

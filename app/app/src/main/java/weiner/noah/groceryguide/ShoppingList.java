@@ -1,14 +1,17 @@
 package weiner.noah.groceryguide;
 
+import java.sql.Array;
 import java.util.ArrayList;
 import java.util.List;
 
 //A user's shopping list, which contains product objects
 public class ShoppingList {
     private final List<Product> products;
+    private List<Product> problemItems;
 
     public ShoppingList() {
         products = new ArrayList<Product>();
+        problemItems = new ArrayList<Product>();
     }
 
     public void addProduct(Product prod) {
@@ -31,5 +34,13 @@ public class ShoppingList {
 
     public int getSize() {
         return products.size();
+    }
+    
+    public List<Product> getProblemItems() {
+        return this.problemItems;
+    }
+
+    public void addProblemItem(Product p) {
+        this.problemItems.add(p);
     }
 }

@@ -173,5 +173,15 @@ public class SSWhalley {
         public String getOrientation() {
             return orientation;
         }
+
+
+        public float getSpan() {
+            if (Objects.equals(this.orientation, "h")) {
+                return this.rect.width();
+            }
+            else {
+                return this.rect.height();
+            }
+        }
     }
 }

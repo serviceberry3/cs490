@@ -74,10 +74,10 @@ class AnnotatorGUI(QWidget):
     self.selected_prod = None
 
     #which side of store element are we annotating?
-    self.side = DIRS[0]
+    self.side = DIRS[0][0]
 
     #which direction of travel was vid taken?
-    self.dir = DIRS[0]
+    self.dir = DIRS[0][0]
 
     #name of store element that user is labeling (ie an aisle or produce island)
     self.store_element_name = None
@@ -197,13 +197,13 @@ class AnnotatorGUI(QWidget):
     side_dropdown_txt = QLabel("       Side:")
     side_dropdown = QComboBox()
 
-    side_dropdown.addItems(["north", "south", "east", "west"])
+    side_dropdown.addItems(DIRS)
     side_dropdown.currentTextChanged.connect(self.side_text_changed)
 
     dir_dropdown_txt = QLabel("       Dir of travel:")
     dir_dropdown = QComboBox()
 
-    dir_dropdown.addItems(["north", "south", "east", "west"])
+    dir_dropdown.addItems(DIRS)
     dir_dropdown.currentTextChanged.connect(self.dir_text_changed)
 
     element_dropdown_txt = QLabel("   Store element:")
@@ -278,10 +278,10 @@ class AnnotatorGUI(QWidget):
     self.mode = mode
 
   def side_text_changed(self, text):
-    self.side = text
+    self.side = text[0]
 
   def dir_text_changed(self, text):
-    self.dir = text
+    self.dir = text[0]
 
   def media_type_text_changed(self, text):
     self.media_type = text
