@@ -28,7 +28,6 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 
-import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.overlay.mylocation.DirectedLocationOverlay;
 
 import java.util.ArrayList;
@@ -296,7 +295,7 @@ public class MainActivity extends AppCompatActivity {
                 //iterate thru the store elements
                 for (SSWhalley.StoreElement element : elements) {
                     //ignore the outer frame of the map
-                    if (!Objects.equals(element.getId(), "frame")) {
+                    if (!Objects.equals(element.getName(), "frame")) {
                         rot = element.getRot();
                         elementRect = element.getRect();
 

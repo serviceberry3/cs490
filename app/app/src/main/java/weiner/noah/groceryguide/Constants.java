@@ -55,13 +55,13 @@ public class Constants {
     public static final float zoneRectStrokeWidth = 1;
 
     //show the label ID next to the subcat lbls?
-    public static final boolean showId = true;
+    public static final boolean showId = false;
 
     //how visible should the grid be?
     public static final int gridTransparency = 200;
 
     public static final float zoomRectBottomPad = 1;
-    public static final float zoneRectBottomPad = 2;
+    public static final float zoneRectYPad = 1;
 
     public static final float zoneRectXPad = 1;
 
@@ -90,4 +90,5 @@ public class Constants {
     public static final float tapDurThresh = 50;
     public static final float tapDistThresh = 20;
 
+    public static final int maxShoppingListSzForPermutationMethod = 10;
 }

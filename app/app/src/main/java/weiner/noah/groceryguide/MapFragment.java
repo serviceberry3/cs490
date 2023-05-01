@@ -40,6 +40,8 @@ public class MapFragment extends Fragment {
 
     private int listItemIndex = 0;
 
+    private Integer thisNode;
+
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -71,7 +73,9 @@ public class MapFragment extends Fragment {
             @Override
             public void onFragmentResult(@NonNull String requestKey, @NonNull Bundle bundle) {
                 shoppingList = mainActivity.shoppingLists.get(0);
-                listItemIndex = 0;
+                listItemIndex = 1;
+
+
 
                 int key = bundle.getInt("key");
                 if (key == 1) {
@@ -86,8 +90,10 @@ public class MapFragment extends Fragment {
                         params.height = 1800;
                         binding.storeMap.setLayoutParams(params);
 
+                        thisNode = binding.storeMap.finalNodeOrdering.get(listItemIndex);
+
                         //set textview text
-                        binding.pathDescription.setText(getResources().getString(R.string.proceed_to) + shoppingList.getProdList().get(listItemIndex).getName());
+                        binding.pathDescription.setText(getResources().getString(R.string.proceed_to) + binding.storeMap.nodesToHitProductKey.get(thisNode).getName());
                         binding.pathDescription.setVisibility(View.VISIBLE);
                         listItemIndex++;
 
@@ -166,7 +172,9 @@ public class MapFragment extends Fragment {
                 binding.storeMap.setPathIdx(binding.storeMap.getPathIdx() + 1);
                 binding.storeMap.invalidate(); //trigger store map redraw
 
-                binding.pathDescription.setText(getResources().getString(R.string.proceed_to) + shoppingList.getProdList().get(listItemIndex).getName());
+                thisNode = binding.storeMap.finalNodeOrdering.get(listItemIndex);
+
+                binding.pathDescription.setText(getResources().getString(R.string.proceed_to) + binding.storeMap.nodesToHitProductKey.get(thisNode).getName());
                 listItemIndex++;
             }
         });

@@ -1,6 +1,7 @@
 package weiner.noah.groceryguide;
 
 import android.database.Cursor;
+import android.graphics.Matrix;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.os.Bundle;
@@ -62,7 +63,7 @@ public class MapUtils {
         args = new QueryArgs("subcat", subCatId);
 
         //results will fetch all entries in location table for the specific subCatId we're requesting. sort results by distance from front of aisle in asc order
-        args.setOrderByStr("distFromFront ASC");
+        args.setOrderByStr("distFromStart ASC");
         q = new Query(args);
         q.generateSelection();
 
@@ -187,5 +188,32 @@ public class MapUtils {
             Log.i(TAG, "candidate node number " + cand + " is too big");
             return -1;
         }
+    }
+
+    //rotate a RectF around its centroid and get the result as a Path
+    //you can't use mapRect() to actually rotate a Rect, since a Rect always has to have its edges aligned with the x/y axes
+    //to rotate a rect off the axes, need to rotate each of the Rect's four corner pts separately
+    public static Path rotateRectToGetPath(RectF rect, float rot, float rotCtrX, float rotCtrY) {
+        Path pth = new Path();
+
+        float[] rectCorners = {
+            rect.left, rect.top, //left, top
+            rect.right, rect.top, //right, top
+            rect.right, rect.bottom, //right, bottom
+            rect.left, rect.bottom//left, bottom
+        };
+
+        Matrix ptsTransform = new Matrix();
+        ptsTransform.setRotate(rot, rotCtrX, rotCtrY);
+        ptsTransform.mapPoints(rectCorners);
+
+        //reconstruct the rotated rect as a path
+        pth.moveTo(rectCorners[0], rectCorners[1]);
+        pth.lineTo(rectCorners[2], rectCorners[3]);
+        pth.lineTo(rectCorners[4], rectCorners[5]);
+        pth.lineTo(rectCorners[6], rectCorners[7]);
+        pth.close();
+
+        return pth;
     }
 }

@@ -11,7 +11,7 @@
         android:id="@+id/store_map"
         app:showText="true"
         app:labelPosition="left"
-        android:layout_height="1800px"
+        android:layout_height="match_parent"
         android:layout_width="match_parent" />
 
     <TextView
@@ -36,8 +36,6 @@
         android:text="@string/next_path_button"
         android:visibility="invisible"
         android:backgroundTint="@color/green"/>
-
-
 
 
 
@@ -127,6 +125,7 @@
         android:layout_marginTop="0dp"
         android:text="pos_x (m)"
         android:layout_below="@+id/store_map"
+        android:visibility="invisible"
         />
 
     <TextView
@@ -138,6 +137,7 @@
         android:layout_below="@+id/pos_x"
         android:layout_marginTop="-5dp"
         android:text="pos_y (m)"
+        android:visibility="invisible"
         />
 
     <TextView
