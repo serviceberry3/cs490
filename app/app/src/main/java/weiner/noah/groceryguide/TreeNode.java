@@ -5,7 +5,6 @@ import java.util.ArrayList;
 
 public class TreeNode {
     private Integer id;
-    private boolean visited;
 
     //this node's children
     private final ArrayList<TreeNode> children = new ArrayList<TreeNode>();

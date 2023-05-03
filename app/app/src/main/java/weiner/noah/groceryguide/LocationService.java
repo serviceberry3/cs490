@@ -57,11 +57,7 @@ public class LocationService extends Service implements SensorEventListener {
     //background Thread on which the service runs
     private Thread locServiceThread;
 
-    //which direction we're walking wrt phone's top edge: 0 is still, -1 is backwards, 1 is fwd
-    private int walkingDir = 0;
-
     private SensorManager sensorManager;
-    private int count = 0, stepCount = 0;
     private long startTime, endTime;
 
     private int accFrame = 0, orFrame = 0;
@@ -128,7 +124,7 @@ public class LocationService extends Service implements SensorEventListener {
                 //Log.i(TAG, "xpos is " + (long)pos.getXPos() + ", ypos is " + (long)pos.getYPos());
 
                 synchronized (obj) {
-                    //get initial lat and lon
+                    //get initial (x, y) position
                     xPos = pos.getXPos();
                     yPos = pos.getYPos();
                 }
@@ -142,8 +138,6 @@ public class LocationService extends Service implements SensorEventListener {
 
                 //while service should still be running
                 while (!isStopInertialLoc) {
-                    count++;
-
                     //throw out oldest accel val in the buffer (head) and store the newest one at tail
                     //notice we're recording acceleration magnitudes, no direction information coming from accelerometer Sensor
                     moveAccWindow(computeAccelMagnitude());
@@ -187,8 +181,6 @@ public class LocationService extends Service implements SensorEventListener {
                             //if a valid valley value of acceleration (heaviest deceleration in human step) has been detected, the acceleration starts to rise,
                             //which means that the previous step has been completed and a new step is started. Wait for a sufficient rise before posting the previous step
                             if (!watchForMaxAccelVal && accelMagnSlidingWindowBuffer[15] >= 9.0) {
-                                stepCount++;
-
                                 //get approximate step size of this step (in meters)
                                 stepDist = getThisStepDist(accelMinTemp, accelMaxTemp);
 
@@ -225,7 +217,6 @@ public class LocationService extends Service implements SensorEventListener {
                     //otherwise, the user is standing still
                     else {
                         resetVel();
-                        walkingDir = 0;
 
                         synchronized (obj) {
                             xPos = CurrentUserPosition.getCurrXPos();
@@ -334,7 +325,7 @@ public class LocationService extends Service implements SensorEventListener {
         CurrentUserPosition.setCurrYPos(yPos);
     }
 
-    public void resetVel(){
+    public void resetVel() {
         Nvelocity[0] = Nvelocity[1] = Nvelocity[2] = 0.0f;
     }
     public void postNewPosition() {
@@ -425,7 +416,7 @@ public class LocationService extends Service implements SensorEventListener {
     private void moveAccWindow(double accelMagnitude) {
         //arraycopy() copies source array from a specific beginning position to the destination array from the mentioned position
         //so here we're sliding the acceleration window to the left one position (throwing out first val), leaving a space at end of the buffer
-        System.arraycopy(accelMagnSlidingWindowBuffer, 1, accelMagnSlidingWindowBuffer, 0, SLIDING_WINDOW_LEN - 1);
+        System.arraycopy(accelMagnSlidingWindowBuffer, 1, accelMagnSlidingWindowBuffer, 0, SLIDING_WINDOW_LEN - 1); //args: src arr, src pos, dst arr, dst pos, len to be copied
 
         //store new acceleration at end of buffer
         accelMagnSlidingWindowBuffer[SLIDING_WINDOW_LEN - 1] = accelMagnitude;

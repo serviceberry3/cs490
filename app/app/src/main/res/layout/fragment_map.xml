@@ -7,6 +7,36 @@
     tools:context=".MapFragment"
     android:orientation="vertical">
 
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        tools:context=".MainActivity">
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/elements"
+        android:layout_width="match_parent"
+        android:layout_height="350px"
+        android:layout_marginLeft="0dp"
+        android:layout_marginRight="0dp"
+        android:layout_marginTop="0dp"
+        android:visibility="invisible"
+        tools:context=".MapFragment"
+        tools:listitem="@layout/element_contents_item" />
+
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/element_contents"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginLeft="0dp"
+        android:layout_marginRight="0dp"
+        android:layout_marginTop="1700px"
+        android:visibility="invisible"
+        tools:context=".MapFragment"
+        tools:listitem="@layout/element_contents_item" />
+
     <weiner.noah.groceryguide.StoreMap2D
         android:id="@+id/store_map"
         app:showText="true"

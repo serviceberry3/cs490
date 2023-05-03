@@ -8,7 +8,6 @@ import android.os.Bundle;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
-import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -17,17 +16,13 @@ import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
 
-import weiner.noah.groceryguide.databinding.FragmentProductsBinding;
 import weiner.noah.groceryguide.databinding.FragmentShoppingListBinding;
-import weiner.noah.groceryguide.databinding.FragmentShoppingListItemBinding;
-import weiner.noah.groceryguide.placeholder.PlaceholderContent;
 
 /**
  * A fragment representing a list of Items.
@@ -36,7 +31,7 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
     private static final String ARG_COLUMN_COUNT = "column-count";
     private MainActivity mainActivity;
     private int mColumnCount = 1;
-    private DBManager dbManager;
+    private DatabaseManager dbManager;
 
     private NavController navController;
 
@@ -46,8 +41,10 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
     //SQL cursor
     private Cursor cursor;
 
-    //curr selected view for which popup menu was opened
+    //curr selected view and product for which popup menu was opened
     private View selectedView;
+    private Product selectedProd;
+
     private FragmentShoppingListBinding binding;
     private ShoppingListItemRecyclerViewAdapter adapter;
 
@@ -66,8 +63,6 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        //Log.i(TAG, "Created!!");
-
         mainActivity = (MainActivity) getActivity();
 
         //arguments can be passed to fragments
@@ -82,7 +77,7 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
         navController = Navigation.findNavController(requireActivity(), R.id.nav_host_fragment_content_main);
 
         //instantiate new DBManager object and open the db
-        dbManager = new DBManager(getActivity());
+        dbManager = new DatabaseManager(getActivity());
         dbManager.open();
 
         //get first shopping list
@@ -130,10 +125,11 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
         return binding.getRoot();
     }
 
-    public void showMenu(View v) {
+    public void showMenu(View v, int position) {
         PopupMenu popup = new PopupMenu(getContext(), v);
 
         selectedView = v;
+        selectedProd = shoppingList.getProdList().get(position);
 
         //This activity implements OnMenuItemClickListener
         popup.setOnMenuItemClickListener(this::onMenuItemClick);
@@ -146,7 +142,9 @@ public class ShoppingListFragment extends Fragment implements MenuItem.OnMenuIte
         TextView idText = (TextView) ((ViewGroup) selectedView).getChildAt(0);
         int prodId = Integer.parseInt(idText.getText().toString());
 
-        MapUtils.showProdOnMap(navController, cursor, dbManager, idText, mainActivity.findViewById(android.R.id.content), getParentFragmentManager(), prodId, R.id.action_ShoppingListFragment_to_MapFragment);
+        int subCatId = selectedProd.getSubCatId();
+
+        MapUtils.showProdOnMap(navController, cursor, dbManager, idText, getParentFragmentManager(), subCatId, R.id.action_ShoppingListFragment_to_MapFragment);
     }
 
     public void removeProduct() {

@@ -33,8 +33,11 @@ public class Constants {
     public static final float mapTopMargin = 400f;
 
     //the whole map canvas covers the entire screen (besides the action bar)
-    public static final float mapCanvHeight = 1999f;
+    public static final int mapCanvHeight = 1999;
+    public static final int mapCanvModifiedHt = 1800;
     public static final float mapCanvWidth = 1080f;
+
+    public static final int mapCanvTopMarginForScrollView = 350;
 
     public static final float mapFrameRectHeight = 900f;
     public static final float mapFrameRectWidth = 1080f;

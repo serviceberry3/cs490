@@ -6,8 +6,7 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <androidx.recyclerview.widget.RecyclerView xmlns:app="http://schemas.android.com/apk/res-auto"
-        xmlns:tools="http://schemas.android.com/tools"
+    <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/shop_list"
         android:name="weiner.noah.groceryguide.ItemFragment"
         android:layout_width="match_parent"
@@ -16,7 +15,7 @@
         android:layout_marginRight="0dp"
         app:layoutManager="LinearLayoutManager"
         tools:context=".ShoppingListFragment"
-        tools:listitem="@layout/fragment_shopping_list_item" />`
+        tools:listitem="@layout/fragment_shopping_list_item" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab"
@@ -24,6 +23,7 @@
         android:layout_margin="@dimen/fab_margin"
         android:src="@android:color/transparent"
         android:layout_height="wrap_content"
-        android:layout_width="wrap_content"/>
+        android:layout_width="wrap_content"
+        android:contentDescription="@string/start_nav_button" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

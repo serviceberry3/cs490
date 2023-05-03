@@ -1,12 +1,12 @@
 package weiner.noah.groceryguide;
 
+import android.content.Context;
 import android.os.Bundle;
-import android.text.Layout;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
@@ -15,6 +15,8 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentResultListener;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.snackbar.Snackbar;
 
@@ -24,13 +26,26 @@ import java.util.Objects;
 import weiner.noah.groceryguide.databinding.FragmentMapBinding;
 
 public class MapFragment extends Fragment {
+    private enum RecyclerViewState {
+        OPEN,
+        CLOSED
+    }
+
+    private RecyclerViewState elementsRecyclerViewState = RecyclerViewState.CLOSED;
+    private RecyclerViewState elementContentsRecyclerViewState = RecyclerViewState.CLOSED;
+
     private final String TAG = "MapFragment";
 
     private FragmentManager fragmentManager;
 
     private FragmentMapBinding binding;
+    private ElementRecyclerViewAdapter elementsListAdapter, elementContentsListAdapter;
+
+    RecyclerView elementsListRecyclerView, elementContentsListRecyclerView;
 
     private Button nextPathButton;
+
+    private View v;
 
     private MainActivity mainActivity;
 
@@ -42,6 +57,10 @@ public class MapFragment extends Fragment {
 
     private Integer thisNode;
 
+    private SSWhalley ssWhalley;
+
+
+
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -50,6 +69,9 @@ public class MapFragment extends Fragment {
         mainActivity = (MainActivity) getActivity();
         assert mainActivity != null;
 
+        mainActivity.setMapFragment(this);
+
+        ssWhalley = new SSWhalley();
 
         //listen for results sent to this fragment when show item on map button clicked
         getParentFragmentManager().setFragmentResultListener("showItemOnMap", this, new FragmentResultListener() {
@@ -75,21 +97,20 @@ public class MapFragment extends Fragment {
                 shoppingList = mainActivity.shoppingLists.get(0);
                 listItemIndex = 1;
 
-
-
                 int key = bundle.getInt("key");
                 if (key == 1) {
 
-                    //start the navigation visualization on the map, ONLY proceeding if full route CAN be computed
+                    //start the navigation visualization on the map, ONLY proceeding if full route CAN be computed using the fxns in StoreMap2D
                     if (binding.storeMap.startNav(shoppingList.getProdList())) {
                         //make the next button visible for navigation
                         binding.nextPathButton.setVisibility(View.VISIBLE);
 
                         //add room at bottom of window for the navigation next button
                         RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) binding.storeMap.getLayoutParams();
-                        params.height = 1800;
+                        params.height = Constants.mapCanvModifiedHt;
                         binding.storeMap.setLayoutParams(params);
 
+                        //get ID of next node in the finalNodeOrdering list
                         thisNode = binding.storeMap.finalNodeOrdering.get(listItemIndex);
 
                         //set textview text
@@ -116,8 +137,15 @@ public class MapFragment extends Fragment {
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        Log.i(TAG, "onCreateView() called!!");
+
         //get the binding for fragment_first and its root view to display
         binding = FragmentMapBinding.inflate(inflater, container, false);
+        if (binding == null) {
+            Log.i(TAG, "ERROR: binding is NULL in onCreateView()!!");
+        }
+
+        v = inflater.inflate(R.layout.fragment_map, container, false);
 
         xAccel = binding.accelX;
         yAccel = binding.accelY;
@@ -186,10 +214,89 @@ public class MapFragment extends Fragment {
             }
         });
 
+        //set the adapter for the RecyclerView that holds the products list
+        Context context = v.getContext();
+
+        elementsListRecyclerView = binding.elements;
+        elementContentsListRecyclerView = binding.elementContents;
+
+        //RecyclerView's LayoutManager measures and positions item views w/in a RecyclerView and
+        //determines policy for when to recycle item views that are no longer visible
+        //here we set the layout manager to be a LinearLayoutManager since we want a list with a single col
+        elementsListRecyclerView.setLayoutManager(new LinearLayoutManager(context));
+        elementContentsListRecyclerView.setLayoutManager(new LinearLayoutManager(context));
+
+        elementsListAdapter = new ElementRecyclerViewAdapter(ssWhalley.getElementList(), this);
+
+        //set adapter for the RecyclerView, using the shopping list at index 0 as the list data
+        elementsListRecyclerView.setAdapter(elementsListAdapter);
+
         //should pretty much always return the root (outermost) view here
         return binding.getRoot();
     }
 
+    public void openElementList(SSWhalley.StoreElement element) {
+        if (elementsRecyclerViewState == RecyclerViewState.CLOSED) {
+            if (binding == null) {
+                Log.i(TAG, "ERROR: openElementList(): binding is NULL!!");
+            }
+
+            //add room at bottom of window for the navigation next button
+            RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) binding.storeMap.getLayoutParams();
+            params.topMargin = Constants.mapCanvTopMarginForScrollView;
+            binding.storeMap.setLayoutParams(params);
+
+            binding.elements.setVisibility(View.VISIBLE);
+
+            elementsRecyclerViewState = RecyclerViewState.OPEN;
+        }
+    }
+
+    public void scrollToElement(SSWhalley.StoreElement e) {
+        ArrayList<SSWhalley.StoreElement> elementList = ssWhalley.getElementList();
+        for (int i = 0; i < elementList.size(); i++) {
+            if (Objects.equals(elementList.get(i).getName(), e.getName())) {
+                binding.elements.scrollToPosition(i);
+                elementsListAdapter.setHighlightPosition(i);
+
+                openElementContents(e);
+            }
+        }
+    }
+
+    //when user taps a store element in top recyclerview, open list of element contents to browse at bottom of screen
+    public void openElementContents(SSWhalley.StoreElement element) {
+        elementContentsListAdapter = new ElementRecyclerViewAdapter(element.getContents(), this);
+
+        elementContentsListRecyclerView.setAdapter(elementContentsListAdapter);
+
+        synchronized(elementContentsListRecyclerView) {
+            elementContentsListRecyclerView.notify();
+        }
+
+        //add room at bottom of window for the navigation next button
+        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) binding.storeMap.getLayoutParams();
+        params.bottomMargin = 300;
+        binding.storeMap.setLayoutParams(params);
+
+        binding.elementContents.setVisibility(View.VISIBLE);
+
+        elementContentsRecyclerViewState = RecyclerViewState.OPEN;
+    }
+
+    public void closeElementInfoLists() {
+        elementsRecyclerViewState = RecyclerViewState.CLOSED;
+        elementContentsRecyclerViewState = RecyclerViewState.CLOSED;
+
+        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) binding.storeMap.getLayoutParams();
+        params.height = Constants.mapCanvHeight;
+        params.topMargin = 0;
+        params.bottomMargin = 0;
+        binding.storeMap.setLayoutParams(params);
+
+        binding.elements.setVisibility(View.INVISIBLE);
+        binding.elementContents.setVisibility(View.INVISIBLE);
+    }
 
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);

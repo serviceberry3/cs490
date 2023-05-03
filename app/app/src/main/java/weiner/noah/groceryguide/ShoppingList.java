@@ -7,6 +7,8 @@ import java.util.List;
 //A user's shopping list, which contains product objects
 public class ShoppingList {
     private final List<Product> products;
+
+    //items whose subcategories are NOT in the subcat_loc database (not shown anywhere on map)
     private List<Product> problemItems;
 
     public ShoppingList() {

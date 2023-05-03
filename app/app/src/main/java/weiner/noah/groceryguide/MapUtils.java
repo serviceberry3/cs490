@@ -30,53 +30,23 @@ public class MapUtils {
         parentFragmentManager.setFragmentResult("startNav", result);
     }
 
-    public static void showProdOnMap(NavController navController, Cursor cursor, DBManager dbManager, View selectedView, View rootView, FragmentManager parentFragmentManager, int prodId, int navAction) {
-        int subCatId = 0;
-        int aisle = 0, side = 0;
-        float distFromFrontMin = 0, distFromFrontMax = 0;
-
-        QueryArgs args = new QueryArgs("prod", prodId);
-        Query q = new Query(args);
-        q.generateSelection();
-
-        //get cursor to read the db, advancing to first entry
-        cursor = dbManager.fetch(DatabaseHelper.PRODS_TABLE_NAME, q, null);
-
-        //get subcat ID num for this prod
-        if (cursor != null) {
-            if (cursor.moveToFirst()) {
-                int subCatIdColIdx = cursor.getColumnIndex("subCatId");
-
-                if (subCatIdColIdx >= 0) {
-                    subCatId = cursor.getInt(subCatIdColIdx);
-                    //Log.i(TAG, "found subcat ID for product number " + prodId + ": " + subCatId);
-                }
-                else {
-                    Log.i(TAG, "NO subCatId col idx found!");
-                }
-            }
-        }
-        else {
-            Log.i(TAG, "Cursor is null!!");
-        }
-
-        args = new QueryArgs("subcat", subCatId);
+    public static void showProdOnMap(NavController navController, Cursor cursor, DatabaseManager dbManager, View rootView, FragmentManager parentFragmentManager, int subCatId, int navAction) {
+        QueryArgs args = new QueryArgs("subcat", subCatId);
 
         //results will fetch all entries in location table for the specific subCatId we're requesting. sort results by distance from front of aisle in asc order
         args.setOrderByStr("distFromStart ASC");
-        q = new Query(args);
+        Query q = new Query(args);
         q.generateSelection();
 
-        //now take the subCatId, run query to the location table, get first location of that subcatid
+        //now take the subCatId, run query to the location table, get IDs of all subcat lbls that correspond to the subCatId
         cursor = dbManager.fetch(DatabaseHelper.SUBCAT_LOC_TABLE_NAME, q, null);
 
         if (cursor != null) {
+            //if there ARE results (the subcategory for the product is somewhere in the subcat_loc table)
             if (cursor.moveToFirst()) {
-                int aisleColIdx = cursor.getColumnIndex("aisle");
-                int sideColIdx = cursor.getColumnIndex("side");
-                int distFromFrontColIdx = cursor.getColumnIndex("distFromFront");
                 int idColIdx = cursor.getColumnIndex("_id");
 
+                //navigate back to the MapFragment from wherever we are
                 NavWrapper.navigateSafe(navController, navAction, null);
 
                 //count num rows in the cursor
@@ -196,6 +166,7 @@ public class MapUtils {
     public static Path rotateRectToGetPath(RectF rect, float rot, float rotCtrX, float rotCtrY) {
         Path pth = new Path();
 
+        //get the four corner coords of the RectF
         float[] rectCorners = {
             rect.left, rect.top, //left, top
             rect.right, rect.top, //right, top

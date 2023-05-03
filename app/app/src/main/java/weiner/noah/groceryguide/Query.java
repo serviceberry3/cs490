@@ -62,7 +62,6 @@ public class Query {
 
     //generate the query strings required to plug into SQLiteDatabase.query()
     public void generateSelection() {
-
         //general SQL query statement is contained in Constants
 
         //generate WHERE SQL prepared statement portion, which is specific to the certain filters we want to use for each table column

@@ -8,4 +8,9 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="green">#40a832</color>
+
+    <color name="focused_color">#42c2f5</color>
+    <color name="pressed_color">#236b87</color>
+    <color name="selected_color">#ab1fa6</color>
+
 </resources>

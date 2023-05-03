@@ -90,6 +90,14 @@ public class MainActivity extends AppCompatActivity {
         startIndoorLoc();
     }
 
+    public MapFragment getMapFragment() {
+        return mapFragment;
+    }
+
+    public void setMapFragment(MapFragment mapFragment) {
+        this.mapFragment = mapFragment;
+    }
+
     @Override
     protected void onStop() {
         super.onStop();
@@ -267,15 +275,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void createGraph() {
-        /*PSEUDOCODE:createGraph
-
-         */
         RectF thisRect, elementRect;
         //for store elements that are drawn as rotated rectangles, we'll create a Path to hold the lines delimiting their edges
         //then we'll check to see if certain cells overlap or fall within the bounds created by that Path
-        Path rotatedRectPath = new Path(), cellPath = new Path(), res = new Path();
+        Path rotatedRectPath, cellPath = new Path(), res = new Path();
         float rot;
-        ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getRectList();
+        ArrayList<SSWhalley.StoreElement> elements = ssWhalley.getElementList();
 
         int currId = 0;
 
@@ -301,25 +306,9 @@ public class MainActivity extends AppCompatActivity {
 
                         //if some rotation is applied, need to find new points
                         if (rot != 0.00f) {
-                            //Log.i(TAG, "HAS ROT");
-                            //get the original four corner coords of this store element
-                            float[] corners = {
-                                    elementRect.left, elementRect.top, //left, top
-                                    elementRect.right, elementRect.top, //right, top
-                                    elementRect.right, elementRect.bottom, //right, bottom
-                                    elementRect.left, elementRect.bottom //left, bottom
-                            };
+                            //rotate the store element rect and get resulting Path
+                            rotatedRectPath = MapUtils.rotateRectToGetPath(elementRect, rot, elementRect.centerX(), elementRect.centerY());
 
-                            //rotate the corner points appropriately
-                            canvasMatrixTemp.setRotate(rot, elementRect.centerX(), elementRect.centerY());
-                            canvasMatrixTemp.mapPoints(corners);
-
-                            //add the cell bounds to the path
-                            rotatedRectPath.reset();
-                            rotatedRectPath.moveTo(corners[0], corners[1]);
-                            rotatedRectPath.lineTo(corners[2], corners[3]);
-                            rotatedRectPath.lineTo(corners[4], corners[5]);
-                            rotatedRectPath.lineTo(corners[6], corners[7]);
                             cellPath.reset();
                             cellPath.addRect(thisRect, Path.Direction.CCW);
 
@@ -529,7 +518,7 @@ public class MainActivity extends AppCompatActivity {
                     yPos = userPosition.getYPos();
                 }
 
-                //if mapfragment is currently displayed
+                //if MapFragment is currently displayed
                 if (mapFragment.getBinding() != null) {
                     mapFragment.getBinding().posX.setText("x pos (m): " + String.format("%.2f", xPos));
                     mapFragment.getBinding().posY.setText("y pos (m): " + String.format("%.2f", yPos));

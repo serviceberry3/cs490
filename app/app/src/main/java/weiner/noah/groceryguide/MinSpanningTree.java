@@ -1,7 +1,6 @@
 package weiner.noah.groceryguide;
 
 import java.util.HashMap;
-import java.util.List;
 
 public class MinSpanningTree {
     private Integer srcNode;

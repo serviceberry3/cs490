@@ -4,7 +4,6 @@ import android.database.Cursor;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -24,10 +23,6 @@ import androidx.fragment.app.Fragment;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
 
-import com.google.android.material.snackbar.Snackbar;
-
-import java.util.Objects;
-
 import weiner.noah.groceryguide.databinding.FragmentProductsBinding;
 
 
@@ -36,14 +31,15 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
 
     private FragmentProductsBinding binding;
 
-    private DBManager dbManager;
+    private DatabaseManager dbManager;
 
     private ListView listView;
 
     //product search bar
     private EditText searchBar;
 
-    //curr selected view for which popup menu was opened
+    //index of current selected view for which popup menu was opened
+    private int selectedProdIdx;
     private View selectedView;
 
     //the SimpleCursorAdapter is a convenience class to map columns from a database cursor to TextViews or ImageViews defined in an XML file
@@ -78,18 +74,8 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        /*
-        binding.buttonSecond.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                NavHostFragment.findNavController(SecondFragment.this).navigate(R.id.action_SecondFragment_to_FirstFragment);
-            }
-        });*/
-
-        //MainActivity mainActivity = (MainActivity) getActivity();
-
         //instantiate new DBManager object and open the db
-        dbManager = new DBManager(getActivity());
+        dbManager = new DatabaseManager(getActivity());
         dbManager.open();
 
         //get cursor to read the db, advancing to first entry
@@ -108,7 +94,7 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long viewId) {
-                showMenu(view);
+                showMenu(view, position);
             }
         });
 
@@ -130,9 +116,10 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
         });
     }
 
-    public void showMenu(View v) {
+    public void showMenu(View v, int position) {
         PopupMenu popup = new PopupMenu(getContext(), v);
 
+        selectedProdIdx = position;
         selectedView = v;
 
         //This activity implements OnMenuItemClickListener
@@ -158,10 +145,13 @@ public class BrowseProductsFragment extends Fragment implements MenuItem.OnMenuI
 
     public void showProdOnMap() {
         //get the ID of product we want to query
-        TextView idText = (TextView) ((ViewGroup) selectedView).getChildAt(0);
-        int prodId = Integer.parseInt(idText.getText().toString());
+        TextView prodIdText = (TextView) ((ViewGroup) selectedView).getChildAt(0);
+        TextView subCatIdText = (TextView) ((ViewGroup) selectedView).getChildAt(2);
 
-        MapUtils.showProdOnMap(navController, cursor, dbManager, idText, binding.getRoot(), getParentFragmentManager(), prodId, R.id.action_BrowseProductsFragment_to_MapFragment);
+        int prodId = Integer.parseInt(prodIdText.getText().toString());
+        int subCatId = Integer.parseInt(subCatIdText.getText().toString());
+
+        MapUtils.showProdOnMap(navController, cursor, dbManager, prodIdText, getParentFragmentManager(), subCatId, R.id.action_BrowseProductsFragment_to_MapFragment);
     }
 
     public void addProdToList() {
