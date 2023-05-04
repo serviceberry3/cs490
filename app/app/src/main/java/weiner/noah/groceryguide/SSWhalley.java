@@ -65,7 +65,7 @@ public class SSWhalley {
 
         //first produce wall
         elementList.add(new StoreElement(new RectF(1053.13f, 360f, 1079.24f, 798.84f), 0.00f, "produce_wall_west", "Bagged produce", "v",
-                new String[]{"Produce", "Tofu", "Kombucha", "Fresh health foods"}));
+                new String[]{"Produce", "Tofu", "Kombucha", "Fresh health foods", "Packaged cut vegetables", "Fruit trays", "Smoothies", "Salad dressing"}));
         elementList.add(new StoreElement(new RectF(1053.13f, 200f, 1079.24f, 350f), 0.00f, "produce_wall_east", "Fresh vegetables", "v",
                 new String[]{"Produce", "Vegetables", "Greens"}));
 

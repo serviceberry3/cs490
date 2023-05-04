@@ -71,8 +71,6 @@ public class MapFragment extends Fragment {
 
         mainActivity.setMapFragment(this);
 
-        ssWhalley = new SSWhalley();
-
         //listen for results sent to this fragment when show item on map button clicked
         getParentFragmentManager().setFragmentResultListener("showItemOnMap", this, new FragmentResultListener() {
             @Override
@@ -147,6 +145,7 @@ public class MapFragment extends Fragment {
 
         v = inflater.inflate(R.layout.fragment_map, container, false);
 
+        ssWhalley = binding.storeMap.getSsWhalley();
         xAccel = binding.accelX;
         yAccel = binding.accelY;
         zAccel = binding.accelZ;
@@ -282,6 +281,9 @@ public class MapFragment extends Fragment {
         binding.elementContents.setVisibility(View.VISIBLE);
 
         elementContentsRecyclerViewState = RecyclerViewState.OPEN;
+
+        binding.storeMap.setSelectedElement(element);
+        binding.storeMap.invalidate();
     }
 
     public void closeElementInfoLists() {

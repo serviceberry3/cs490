@@ -111,7 +111,7 @@ class AnnotatorGUI(QWidget):
       my_query = Query(QueryArgs(prod_id, None, None))
       res = DataLookup(my_query.query_args, True).data #should only have one result
 
-      print("res is", res)
+      print("Selected product is", res)
 
       first_res = res[0]
 
@@ -339,11 +339,15 @@ class AnnotatorGUI(QWidget):
     #widget = self.app.focusWidget()
     #print(widget)
 
+    delay_time = 15
+
     #TODO: cursor shape set not working
     #QApplication.setOverrideCursor(Qt.WaitCursor)
     cursor = QCursor()
     cursor.setShape(Qt.CrossCursor)
     self.app.setOverrideCursor(QCursor(Qt.WaitCursor)) 
+
+    cap = None
 
     #print("play_vid called, self.vid is", self.vid)
 
@@ -379,12 +383,15 @@ class AnnotatorGUI(QWidget):
         print(f"ERROR opening video file {self.vid}")
         exit()
 
+      cap.set(cv2.CAP_PROP_FPS, 30)
       #get video fps
       fps = cap.get(cv2.CAP_PROP_FPS)
       print(f"{fps} frames per second")
 
       #get total num of frames
       frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+      
 
       if (fps == 0.0):
         print("ERROR: get returned 0.0 frames per second")
@@ -447,6 +454,20 @@ class AnnotatorGUI(QWidget):
     else:
       #read frames until video is done
       while(cap.isOpened()):
+          key = cv2.waitKey(delay_time)
+          #pause video using space key or p key
+          if key == ord('p') or key == ord(' '):
+            print("Paused at frame number %d and at time %.2f sections" % (framectr, framectr / fps))
+            cv2.setWindowTitle(self.vid_shortname, SELECT_ITEM_STR)
+            key = cv2.waitKey(-1) #wait until any key is pressed
+
+            #can press q to quit while paused
+            if key == ord('q'):
+              self.output_widget.setFocus()
+              break
+
+            cv2.setWindowTitle(self.vid_shortname, self.vid_shortname)
+
           #read a frame
           ret, frame = cap.read()
 

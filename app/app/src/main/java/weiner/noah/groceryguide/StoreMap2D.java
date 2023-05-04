@@ -386,6 +386,10 @@ public class StoreMap2D extends View {
         }
     }
 
+    public void setSelectedElement(SSWhalley.StoreElement selectedElement) {
+        this.selectedElement = selectedElement;
+    }
+
     private void init() {
         Log.i(TAG, "init() running!!");
 
@@ -1064,6 +1068,10 @@ public class StoreMap2D extends View {
                 } while (cursor.moveToNext());
             }
         }
+    }
+
+    public SSWhalley getSsWhalley() {
+        return ssWhalley;
     }
 
     public void drawSubcatLabels(Canvas canvas) {

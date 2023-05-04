@@ -88,10 +88,10 @@ public class Constants {
     public static final float SS_WHALLEY_HEADING = 116f;
 
     public static final float SS_WHALLEY_ACTUAL_WIDTH = 82f; //in meters
-    public static final float SS_WHALLEY_ACTUAL_HT = 49f; //in meters
+    public static final float SS_WHALLEY_ACTUAL_HT = 60f; //in meters
 
     public static final float tapDurThresh = 50;
     public static final float tapDistThresh = 20;
 
-    public static final int maxShoppingListSzForPermutationMethod = 10;
+    public static final int maxShoppingListSzForPermutationMethod = 5;
 }
